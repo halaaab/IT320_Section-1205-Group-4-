@@ -1,0 +1,13 @@
+{
+    "name": "replate/backend",
+    "description": "RePlate PHP Backend — MongoDB",
+    "require": {
+        "php": ">=8.1",
+        "mongodb/mongodb": "^1.21"
+    },
+    "autoload": {
+        "psr-4": {
+            "RePlate\\": "src/"
+        }
+    }
+}
