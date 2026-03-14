@@ -17,6 +17,7 @@ class PickupLocation extends BaseModel {
             'label'       => $data['label'],              // e.g. "Main Branch"
             'street'      => $data['street'],
             'city'        => $data['city'],
+            'zip'         => $data['zip'] ?? '',
             'coordinates' => [
                 'lat' => (float) $data['lat'],
                 'lng' => (float) $data['lng'],
@@ -70,6 +71,7 @@ class PickupLocation extends BaseModel {
   label       String     e.g. "Main Branch", "Branch 2"
   street      String
   city        String
+  zip         String     postal code (optional)
   coordinates Object     { lat: Float, lng: Float }
   isDefault   Boolean    true = signup address (can be changed)
   createdAt   UTCDateTime

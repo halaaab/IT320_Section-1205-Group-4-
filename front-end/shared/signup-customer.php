@@ -1,70 +1,60 @@
 <?php
-// ================================================================
-// signup-customer.php — Customer Registration
-// ================================================================
-// FORM FIELDS EXPECTED:
-//   name, email, password, confirm
-// ON SUCCESS:
-//   redirect to login.php?registered=1
-// ON FAILURE:
-//   $errors[field]   → error message per field
-// ================================================================
-
 session_start();
 require_once '../../back-end/config/database.php';
 require_once '../../back-end/models/BaseModel.php';
 require_once '../../back-end/models/Customer.php';
 
-$errors  = [];
-$success = false;
-$old     = ['name' => '', 'email' => ''];
+$errors = [];
+$old    = ['name' => '', 'email' => ''];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $name     = trim($_POST['name']     ?? '');
-    $email    = trim($_POST['email']    ?? '');
-    $password =      $_POST['password'] ?? '';
-    $confirm  =      $_POST['confirm']  ?? '';
+    $name     = trim($_POST['name'] ?? '');
+    $email    = trim($_POST['email'] ?? '');
+    $password = $_POST['password'] ?? '';
+    $confirm  = $_POST['confirm'] ?? '';
 
     $old['name']  = htmlspecialchars($name);
     $old['email'] = htmlspecialchars($email);
 
-    if (!$name)                                         $errors['name']     = 'Please enter your name.';
-    if (!filter_var($email, FILTER_VALIDATE_EMAIL))     $errors['email']    = 'Please enter a valid email address.';
-    if (strlen($password) < 8)                          $errors['password'] = 'Password must be at least 8 characters.';
-    if ($password !== $confirm || !$confirm)            $errors['confirm']  = 'Passwords do not match.';
+    if (!$name) {
+        $errors['name'] = 'Please enter your name.';
+    }
+
+    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        $errors['email'] = 'Please enter a valid email address.';
+    }
+
+    if (strlen($password) < 8) {
+        $errors['password'] = 'Password must be at least 8 characters.';
+    }
+
+    if ($password !== $confirm || !$confirm) {
+        $errors['confirm'] = 'Passwords do not match.';
+    }
 
     if (empty($errors)) {
-      $model = new Customer();
-if (empty($errors)) {
-    try {
-        $model = new Customer();
+        try {
+            $model = new Customer();
 
-        if ($model->findByEmail($email)) {
-            $errors['email'] = 'This email is already registered.';
-        } else {
-            $newId = $model->create([
-                'fullName'    => $name,
-                'email'       => $email,
-                'password'    => $password,
-                'phoneNumber' => '',
-            ]);
+            if ($model->findByEmail($email)) {
+                $errors['email'] = 'This email is already registered.';
+            } else {
+                $newId = $model->create([
+                    'fullName'    => $name,
+                    'email'       => $email,
+                    'password'    => $password,
+                    'phoneNumber' => '',
+                ]);
 
-            echo "Created user successfully: " . $newId;
-            exit;
+                $_SESSION['customerId'] = (string)$newId;
+                $_SESSION['userName']   = $name;
+
+                header('Location: landing.php');
+                exit;
+            }
+        } catch (Throwable $e) {
+            die('Signup error: ' . $e->getMessage());
         }
-    } catch (Throwable $e) {
-        die('Signup error: ' . $e->getMessage());
-    }
-} else {
-    $model->create([
-        'fullName'    => $name,
-        'email'       => $email,
-        'password'    => $password,
-        'phoneNumber' => '',
-    ]);
-    header('Location: login.php?registered=1');
-    exit;
-}
     }
 }
 
@@ -81,81 +71,87 @@ $hasErrors = !empty($errors);
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
-    body {
-      font-family: 'Playfair Display', serif;
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-      background-image: url('../../images/signup banner.png');
-      background-size: cover;
-      background-position: top center;
-      background-repeat: no-repeat;
-      background-attachment: scroll;
-    }
+body {
+  font-family: 'Playfair Display', serif;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: #f8fbff;
+}
 
-    /* ── PAGE LAYOUT ── */
-    .page {
-      flex: 1;
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      min-height: calc(100vh - 80px);
-    }
+.page {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  min-height: calc(100vh - 120px);
+  background-image: url('../../images/signup banner.png');
+  background-size: 110%;
+  background-position: right top;
+  background-repeat: no-repeat;
+}
 
     /* ── LEFT PANEL ── */
-    .left-panel {
-      display: flex;
-      flex-direction: column;
-      padding: 48px 64px;
-      background: transparent;
-    }
-
-    .back-btn {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      width: 40px;
-      height: 40px;
-      border-radius: 50%;
-      border: 2px solid #c8d8ee;
-      background: rgba(255,255,255,0.7);
-      cursor: pointer;
-      color: #1a3a6b;
-      font-size: 22px;
-      text-decoration: none;
-      transition: background 0.2s, border-color 0.2s;
-      margin-bottom: 40px;
-      flex-shrink: 0;
-      line-height: 1;
-    }
+.left-panel {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 48px 64px;
+  background: transparent;
+  position: relative;
+}
+.back-btn {
+  position: absolute;
+  top: 28px;
+  left: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  border: 2px solid #1a3a6b;
+  background: transparent;
+  cursor: pointer;
+  color: #1a3a6b;
+  font-size: 24px;
+  text-decoration: none;
+  transition: background 0.2s, border-color 0.2s;
+  line-height: 1;
+}
     .back-btn:hover { background: #fff; border-color: #1a3a6b; }
 
-    .form-area {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      max-width: 460px;
-      background: rgba(255,255,255,0.88);
-      border-radius: 24px;
-      padding: 40px 44px;
-      backdrop-filter: blur(6px);
-      box-shadow: 0 8px 40px rgba(26,58,107,0.10);
-    }
+.form-area {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  max-width: 620px;
+  min-height: auto;
+  background: transparent;
+  border-radius: 0;
+  padding: 0;
+  backdrop-filter: none;
+  box-shadow: none;
+  margin-top: -40px;
+}
 
     .form-title {
-      font-family: 'Playfair Display', serif;
-      font-size: 32px;
-      color: #1a3a6b;
-      margin-bottom: 6px;
-      font-weight: 700;
-    }
+  font-family: 'Playfair Display', serif;
+  font-size: 42px;
+  color: #1a3a6b;
+  margin-bottom: 14px;
+  font-weight: 700;
+  text-align: center;
+}
 
-    .form-subtitle {
-      font-size: 14px;
-      color: #7a8fa8;
-      margin-bottom: 36px;
-      font-family: 'Playfair Display', serif;
-    }
+   .form-subtitle {
+  font-size: 18px;
+  color: #5f78a0;
+  margin-bottom: 34px;
+  font-family: 'Playfair Display', serif;
+  text-align: center;
+}
     .form-subtitle a {
       color: #2255a4;
       text-decoration: none;
@@ -164,22 +160,29 @@ $hasErrors = !empty($errors);
     .form-subtitle a:hover { text-decoration: underline; }
 
     /* ── ROLE SELECTOR (step 1) ── */
-    .role-selector { display: flex; gap: 16px; margin-top: 8px; }
+.role-selector {
+  display: flex;
+  gap: 14px;
+  margin-top: 10px;
+  justify-content: center;
+  width: 100%;
+  max-width: 430px;
+}
 
-    .role-btn {
-      flex: 1;
-      padding: 14px 20px;
-      border-radius: 50px;
-      border: 2px solid #1a3a6b;
-      background: #1a3a6b;
-      color: #fff;
-      font-size: 16px;
-      font-weight: 700;
-      font-family: 'Playfair Display', serif;
-      cursor: pointer;
-      transition: background 0.2s, transform 0.15s, box-shadow 0.2s;
-      box-shadow: 0 4px 16px rgba(26,58,107,0.2);
-    }
+   .role-btn {
+  flex: 1;
+  padding: 16px 24px;
+  border-radius: 50px;
+  border: 2px solid #102c8f;
+  background: #102c8f;
+  color: #fff;
+  font-size: 16px;
+  font-weight: 700;
+  font-family: 'Playfair Display', serif;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.15s, box-shadow 0.2s;
+  box-shadow: 0 4px 16px rgba(26,58,107,0.18);
+}
     .role-btn:hover {
       background: #2255a4;
       transform: translateY(-2px);
@@ -187,29 +190,33 @@ $hasErrors = !empty($errors);
     }
 
     /* ── FORM FIELDS (step 2) ── */
-    .signup-form { display: flex; flex-direction: column; gap: 20px; }
+   .signup-form {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
 
     .field-group { display: flex; flex-direction: column; gap: 6px; }
 
-    .field-label {
-      font-size: 14px;
-      font-weight: 700;
-      color: #1a3a6b;
-      font-family: 'Playfair Display', serif;
-    }
+   .field-label {
+  font-size: 15px;
+  font-weight: 700;
+  color: #1a3a6b;
+  font-family: 'Playfair Display', serif;
+}
 
-    .field-input {
-      padding: 14px 20px;
-      border-radius: 50px;
-      border: 1.5px solid #c8d8ee;
-      background: rgba(255,255,255,0.85);
-      font-size: 14px;
-      font-family: 'Playfair Display', serif;
-      color: #1a3a6b;
-      outline: none;
-      transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
-      width: 100%;
-    }
+  .field-input {
+  padding: 18px 24px;
+  border-radius: 50px;
+  border: 1.5px solid #c8d8ee;
+  background: rgba(255,255,255,0.85);
+  font-size: 16px;
+  font-family: 'Playfair Display', serif;
+  color: #1a3a6b;
+  outline: none;
+  transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
+  width: 100%;
+}
     .field-input::placeholder { color: #b0c4d8; }
     .field-input:focus {
       border-color: #2255a4;
@@ -221,42 +228,53 @@ $hasErrors = !empty($errors);
     .password-wrap { position: relative; }
     .password-wrap .field-input { padding-right: 50px; }
     .toggle-pw {
-      position: absolute;
-      right: 18px;
-      top: 50%;
-      transform: translateY(-50%);
-      background: none;
-      border: none;
-      cursor: pointer;
-      color: #8a9ab5;
-      font-size: 16px;
-      padding: 0;
-      line-height: 1;
-      transition: color 0.2s;
-    }
+  position: absolute;
+  right: 18px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
     .toggle-pw:hover { color: #1a3a6b; }
 
-    .btn-submit {
-      background: #1a3a6b;
-      color: #fff;
-      border: none;
-      border-radius: 50px;
-      padding: 15px 0;
-      font-size: 16px;
-      font-weight: 700;
-      font-family: 'Playfair Display', serif;
-      cursor: pointer;
-      width: 55%;
-      align-self: center;
-      box-shadow: 0 6px 20px rgba(26,58,107,0.25);
-      transition: background 0.2s, transform 0.15s, box-shadow 0.2s;
-      margin-top: 6px;
-    }
-    .btn-submit:hover {
-      background: #2255a4;
-      transform: translateY(-2px);
-      box-shadow: 0 10px 28px rgba(26,58,107,0.35);
-    }
+    
+
+
+.form-buttons {
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+  margin-top: 10px;
+}
+
+.btn-submit,
+.btn-back {
+  background: #1a3a6b;
+  color: #fff;
+  border: none;
+  border-radius: 50px;
+  padding: 15px 32px;
+  font-size: 16px;
+  font-weight: 700;
+  font-family: 'Playfair Display', serif;
+  cursor: pointer;
+  box-shadow: 0 6px 20px rgba(26,58,107,0.25);
+  transition: background 0.2s, transform 0.15s, box-shadow 0.2s;
+  min-width: 150px;
+}
+
+.btn-submit:hover,
+.btn-back:hover {
+  background: #2255a4;
+  transform: translateY(-2px);
+  box-shadow: 0 10px 28px rgba(26,58,107,0.35);
+}
 
     .field-error {
       font-size: 12px;
@@ -268,10 +286,16 @@ $hasErrors = !empty($errors);
     }
     .field-error.show { display: block; }
 
-    /* ── RIGHT PANEL ── */
-    .right-panel { /* background image shows through */ }
+  
 
     /* ── STEP TRANSITION ── */
+#step1 {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  width: 100%;
+}
     #step1, #step2 { transition: opacity 0.3s; }
     #step2 { display: none; opacity: 0; }
 
@@ -347,7 +371,7 @@ $hasErrors = !empty($errors);
           <p class="form-subtitle">Already have an account? <a href="login.php">log In</a></p>
           <div class="role-selector">
             <button class="role-btn" onclick="showForm()">Customer</button>
-            <button class="role-btn" onclick="window.location.href='singup-provider.php'">Provider</button>
+ <button class="role-btn" onclick="window.location.href='signup-provider.php'">Provider</button>
           </div>
         </div>
 
@@ -401,7 +425,12 @@ $hasErrors = !empty($errors);
                   type="password"
                   placeholder="Enter your password ...."
                 />
-                <button class="toggle-pw" type="button" onclick="togglePw('passwordInput', this)" tabindex="-1">👁</button>
+                <button class="toggle-pw" type="button" onclick="togglePw('passwordInput')"  tabindex="-1">
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#8a9ab5" stroke-width="2">
+<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z"/>
+<circle cx="12" cy="12" r="3"/>
+</svg>
+</button>
               </div>
               <span class="field-error <?= isset($errors['password']) ? 'show' : '' ?>" id="passwordError">
                 <?= isset($errors['password']) ? htmlspecialchars($errors['password']) : 'Password must be at least 8 characters.' ?>
@@ -419,14 +448,27 @@ $hasErrors = !empty($errors);
                   type="password"
                   placeholder="Enter your password ...."
                 />
-                <button class="toggle-pw" type="button" onclick="togglePw('confirmInput', this)" tabindex="-1">👁</button>
+                <button class="toggle-pw" type="button" onclick="togglePw('confirmInput')" tabindex="-1">
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#8a9ab5" stroke-width="2">
+    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z"/>
+    <circle cx="12" cy="12" r="3"/>
+  </svg>
+</button>
               </div>
               <span class="field-error <?= isset($errors['confirm']) ? 'show' : '' ?>" id="confirmError">
                 <?= isset($errors['confirm']) ? htmlspecialchars($errors['confirm']) : 'Passwords do not match.' ?>
               </span>
             </div>
 
-            <button class="btn-submit" type="submit">Sign up</button>
+            <div class="form-buttons">
+  <button class="btn-back" type="button" onclick="backToStep1()">
+    Back
+  </button>
+
+  <button class="btn-submit" type="submit">
+    Sign up
+  </button>
+</div>
 
           </form>
         </div>
@@ -488,18 +530,28 @@ $hasErrors = !empty($errors);
         setTimeout(() => s2.style.opacity = '1', 10);
       }, 250);
     }
+function backToStep1() {
+  const s1 = document.getElementById('step1');
+  const s2 = document.getElementById('step2');
 
+  s2.style.opacity = '0';
+
+  setTimeout(() => {
+    s2.style.display = 'none';
+    s1.style.display = 'flex';
+    setTimeout(() => s1.style.opacity = '1', 10);
+  }, 250);
+}
     // ── Password visibility toggle ────────────────────────────────────────
-    function togglePw(inputId, btn) {
-      const input = document.getElementById(inputId);
-      if (input.type === 'password') {
-        input.type = 'text';
-        btn.textContent = '🙈';
-      } else {
-        input.type = 'password';
-        btn.textContent = '👁';
-      }
-    }
+  function togglePw(inputId) {
+  const input = document.getElementById(inputId);
+
+  if (input.type === 'password') {
+    input.type = 'text';
+  } else {
+    input.type = 'password';
+  }
+}
 
     // ── Client-side validation (fires before PHP sees the POST) ───────────
     document.getElementById('signupForm').addEventListener('submit', function(e) {
