@@ -70,9 +70,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (mb_strlen($description) < 10) $errors['description'] = 'Please write a little more about the issue.';
     if (!$errors) {
         $ticketModel->create($customerId, ['reason'=>$reason,'description'=>$description]);
-        $success = 'Your issue has been submitted successfully.';
+        header('Location: contact.php?success=1');
+        exit;
     }
 }
+$success = isset($_GET['success']) ? 'Your issue has been submitted successfully.' : '';
 $tickets = $ticketModel->getByCustomer($customerId);
 ?>
 <!DOCTYPE html>
@@ -145,7 +147,7 @@ $tickets = $ticketModel->getByCustomer($customerId);
     .sidebar { width: 240px; min-height: calc(100vh - 72px); background: #2255a4; display: flex; flex-direction: column; padding: 36px 24px 28px; flex-shrink: 0; }
     .sidebar-welcome { color: rgba(255,255,255,0.75); font-size: 18px; font-weight: 400; margin-bottom: 4px; }
     .sidebar-name { color: rgba(255,255,255,0.55); font-size: 42px; font-weight: 700; line-height: 1.1; margin-bottom: 36px; }
-    .sidebar-nav { display: flex; flex-direction: column; gap: 16px; flex: 1; background: transparent; }
+    .sidebar-nav { display: flex; flex-direction: column; gap: 16px; background: transparent; }
     .sidebar-link { display: flex; align-items: center; gap: 10px; color: rgba(255,255,255,0.75); text-decoration: none; font-size: 16px; font-weight: 400; padding: 10px 8px; border-radius: 0; transition: color 0.2s; background: none !important; -webkit-tap-highlight-color: transparent; }
     .sidebar-link:hover { color: #fff; background: none !important; }
     .sidebar-link.active { color: #fff !important; font-weight: 700; border-bottom: 2px solid rgba(255,255,255,0.5); background: none !important; padding-bottom: 6px; }
