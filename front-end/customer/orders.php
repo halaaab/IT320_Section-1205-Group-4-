@@ -11,6 +11,7 @@ require_once '../../back-end/models/Order.php';
 require_once '../../back-end/models/OrderItem.php';
 require_once '../../back-end/models/SupportTicket.php';
 require_once '../../back-end/models/Notification.php';
+require_once '../../back-end/models/Favourite.php';
 
 if (empty($_SESSION['customerId'])) {
     header('Location: ../shared/login.php');
@@ -20,6 +21,27 @@ if (empty($_SESSION['customerId'])) {
 $customerId = $_SESSION['customerId'];
 $customer = (new Customer())->findById($customerId);
 $firstName = explode(' ', trim($customer['fullName'] ?? ($_SESSION['userName'] ?? 'Customer')))[0] ?: 'Customer';
+
+// ── Expiry alerts ──
+$expiryAlerts = []; $alertCount = 0;
+$_now = time(); $_soon = $_now + 48*3600;
+$_fc = new Cart(); $_fc2 = $_fc->getOrCreate($customerId);
+$_cids = array_map(fn($ci) => (string)$ci['itemId'], (array)($_fc2['cartItems'] ?? []));
+$_fv = new Favourite(); $_fvs = $_fv->getByCustomer($customerId);
+$_fids = array_map(fn($f) => (string)$f['itemId'], $_fvs);
+$_wids = array_unique(array_merge($_cids, $_fids));
+$_im2 = new Item();
+foreach ($_wids as $_wid) {
+    try {
+        $_wi = $_im2->findById($_wid);
+        if (!$_wi || !isset($_wi['expiryDate'])) continue;
+        $_exp = $_wi['expiryDate']->toDateTime()->getTimestamp();
+        if ($_exp >= $_now && $_exp <= $_soon) {
+            $expiryAlerts[] = ['name'=>$_wi['itemName']??'Item','hoursLeft'=>ceil(($_exp-$_now)/3600),'source'=>in_array($_wid,$_cids)?'cart':'favourites'];
+        }
+    } catch (Throwable) { continue; }
+}
+$alertCount = count($expiryAlerts);
 
 function rp_h($v){ return htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8'); }
 function rp_oid($v){ return is_object($v) ? (string)$v : (string)$v; }
@@ -81,12 +103,31 @@ function rp_top_header($active='') { ?>
       <button class="nav-bell" type="button" onclick="toggleNotifDropdown()">
         <svg width="18" height="18" fill="none" stroke="#fff" stroke-width="1.8" viewBox="0 0 24 24"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
       </button>
+      <?php if ($alertCount > 0): ?><span class="bell-badge"><?= $alertCount ?></span><?php endif; ?>
       <div class="notif-dropdown" id="notifDropdown">
         <div class="notif-header">
-          <span class="notif-header-title">Notifications</span>
-          <span style="font-size:12px;color:#b0c4d8;">0 alerts</span>
+          <span class="notif-header-title">&#x23F0; Expiring Soon</span>
+          <span style="font-size:12px;color:#b0c4d8;"><?= $alertCount ?> alert<?= $alertCount!==1?'s':'' ?></span>
         </div>
-        <div class="notif-empty">No notifications right now</div>
+        <?php if (empty($expiryAlerts)): ?>
+        <div class="notif-empty">
+          <svg width="32" height="32" fill="none" stroke="#c8d8ee" stroke-width="1.5" viewBox="0 0 24 24" style="margin:0 auto 8px;display:block;"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+          No expiry alerts right now
+        </div>
+        <?php else: ?>
+        <?php foreach ($expiryAlerts as $alert): ?>
+        <div class="notif-item">
+          <div class="notif-icon"><svg width="16" height="16" fill="none" stroke="#e07a1a" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+          <div class="notif-text">
+            <p class="notif-name"><?= rp_h($alert['name']) ?></p>
+            <div class="notif-meta">
+              <span class="notif-hours">&#x23F3; <?= $alert['hoursLeft'] ?>h left</span>
+              <span class="notif-source-tag <?= $alert['source']==="cart"?"cart":"" ?>"><?= $alert['source']==="cart"?"&#x1F6D2; Cart":"&#x2665; Favourites" ?></span>
+            </div>
+          </div>
+        </div>
+        <?php endforeach; ?>
+        <?php endif; ?>
       </div>
     </div>
     <a href="customer-profile.php" class="nav-avatar">
@@ -140,6 +181,17 @@ nav{display:flex;align-items:center;justify-content:space-between;padding:0 48px
 .nav-bell-wrap{position:relative}
 .nav-bell{width:38px;height:38px;border-radius:50%;border:2px solid rgba(255,255,255,.6);display:flex;align-items:center;justify-content:center;cursor:pointer;background:none;transition:background .2s}
 .nav-bell:hover{background:rgba(255,255,255,.15)}
+.bell-badge{position:absolute;top:-3px;right:-3px;width:18px;height:18px;background:#e07a1a;border-radius:50%;border:2px solid transparent;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff;pointer-events:none}
+.notif-item{display:flex;align-items:flex-start;gap:12px;padding:14px 18px;border-bottom:1px solid #f5f8fc;transition:background .15s}
+.notif-item:last-child{border-bottom:none}
+.notif-item:hover{background:#f8fbff}
+.notif-icon{width:36px;height:36px;border-radius:50%;background:#fff4e6;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px}
+.notif-text{flex:1}
+.notif-name{font-size:14px;font-weight:700;color:#1a3a6b;margin-bottom:3px}
+.notif-meta{font-size:12px;color:#7a8fa8;display:flex;align-items:center;gap:6px}
+.notif-source-tag{background:#e8f0ff;color:#2255a4;border-radius:50px;padding:2px 8px;font-size:11px;font-weight:700}
+.notif-source-tag.cart{background:#e8f7ee;color:#1a6b3a}
+.notif-hours{color:#e07a1a;font-weight:700}
 .notif-dropdown{display:none;position:absolute;top:48px;right:0;width:320px;background:#fff;border-radius:16px;box-shadow:0 8px 40px rgba(26,58,107,.18);border:1.5px solid #e0eaf5;z-index:9999;overflow:hidden}
 .notif-dropdown.open{display:block}
 .notif-header{display:flex;align-items:center;justify-content:space-between;padding:16px 18px 12px;border-bottom:1.5px solid #f0f5fc}

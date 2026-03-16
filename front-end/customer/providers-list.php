@@ -34,7 +34,7 @@ if ($categoryFilter !== 'all') {
 //      class="<?= $categoryFilter===$cat ? 'active' : '' ?>">
 //     <?= htmlspecialchars($cat) ?>
 //   </a>
-// <?php endforeach; ?>
+//
 //
 // ── EXAMPLE: Provider cards ──
 // <?php foreach ($providers as $p): ?>
