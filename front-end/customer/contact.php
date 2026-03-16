@@ -162,7 +162,7 @@ function rp_page_styles(){ ?>
 <style>
 *{box-sizing:border-box}
 html,body{margin:0;padding:0}
-body{background:#e8eef5;color:#1b2f74;font-family:'Playfair Display',serif}
+body{background:#e8eef5;color:#1b2f74;font-family:'Playfair Display',serif;min-height:100vh;display:flex;flex-direction:column;}
 a{text-decoration:none}
 
 /* ── NAV ── */
