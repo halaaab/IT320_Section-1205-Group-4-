@@ -294,7 +294,7 @@ $showCancel = isset($_GET['confirm']) ? $_GET['confirm'] : '';
 
 <div class="page-wrap">
   <div class="page-title-row">
-    <a class="back-btn" href="../shared/landing.php">‹</a>
+    <a class="back-btn" href="customer-profile.php">‹</a>
     <h1 class="page-title">Orders</h1>
   </div>
 
