@@ -120,8 +120,6 @@ foreach ($enriched as $entry) {
 |--------------------------------------------------------------------------
 | Handle POST: Place order
 |--------------------------------------------------------------------------
-| selectedPickupTime is now per provider:
-| selectedPickupTime[providerId] = "4:00 PM - 6:00 PM"
 */
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (empty($enriched)) {
@@ -196,747 +194,292 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>RePlate – Checkout</title>
-
-  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <title>RePlate – Order Details</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 
   <style>
-    :root {
-      --blue: #051e6b;
-      --orange: #f67b1c;
-      --cream: #fffaf5;
-      --text: #12223b;
-      --muted: #6e7583;
-      --line: #e6e8ee;
-      --white: #ffffff;
-      --card-shadow: 0 12px 32px rgba(5, 30, 107, 0.08);
-      --radius-xl: 28px;
-      --radius-lg: 22px;
-      --radius-md: 16px;
-    }
-
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
-
-    html, body {
-      min-height: 100%;
-    }
-
-    body {
-      font-family: 'Inter', sans-serif;
-      color: var(--text);
-      background: #f7f8fc;
-    }
-
-    a {
-      text-decoration: none;
-      color: inherit;
-    }
-
-    img {
-      max-width: 100%;
-      display: block;
-    }
-
-    .site-header {
-      background: var(--white);
-      border-bottom: 1px solid var(--line);
-      position: sticky;
-      top: 0;
-      z-index: 50;
-    }
-
-    .site-header .inner {
-      width: min(1200px, calc(100% - 32px));
-      margin: 0 auto;
-      min-height: 84px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 20px;
-    }
-
-    .brand {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-
-    .brand img {
-      height: 42px;
-      object-fit: contain;
-    }
-
-    .brand span {
-      font-family: 'Playfair Display', serif;
-      font-size: 1.6rem;
-      font-weight: 700;
-      color: var(--blue);
-    }
-
-    .nav-links {
-      display: flex;
-      align-items: center;
-      gap: 22px;
-      flex-wrap: wrap;
-    }
-
-    .nav-links a {
-      color: var(--blue);
-      font-weight: 600;
-      font-size: 0.98rem;
-    }
-
-    .nav-links a.active {
-      color: var(--orange);
-    }
-
-    .page-shell {
-      width: min(1200px, calc(100% - 32px));
-      margin: 28px auto 48px;
-    }
-
-    .breadcrumb {
-      margin-bottom: 18px;
-      color: var(--muted);
-      font-size: 0.95rem;
-    }
-
-    .page-title-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 16px;
-      margin-bottom: 24px;
-      flex-wrap: wrap;
-    }
-
-    .page-title-row h1 {
-      font-family: 'Playfair Display', serif;
-      color: var(--blue);
-      font-size: clamp(2rem, 4vw, 2.8rem);
-      line-height: 1.05;
-    }
-
-    .checkout-grid {
-      display: grid;
-      grid-template-columns: 1.55fr 0.85fr;
-      gap: 28px;
-      align-items: start;
-    }
-
-    .main-column {
-      display: flex;
-      flex-direction: column;
-      gap: 22px;
-    }
-
-    .summary-column {
-      position: sticky;
-      top: 110px;
-    }
-
-    .section-card {
-      background: var(--white);
-      border: 1px solid var(--line);
-      border-radius: var(--radius-xl);
-      box-shadow: var(--card-shadow);
-      padding: 24px;
-    }
-
-    .section-title {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-      margin-bottom: 18px;
-    }
-
-    .section-title h2 {
-      font-family: 'Playfair Display', serif;
-      color: var(--blue);
-      font-size: 1.6rem;
-    }
-
-    .section-title p {
-      color: var(--muted);
-      font-size: 0.95rem;
-    }
-
-    .provider-block {
-      border: 1px solid var(--line);
-      border-radius: 24px;
-      overflow: hidden;
-      background: #fcfdff;
-      margin-bottom: 20px;
-    }
-
-    .provider-block:last-child {
-      margin-bottom: 0;
-    }
-
-    .provider-head {
-      padding: 20px 20px 16px;
-      background: linear-gradient(180deg, #f6f9ff 0%, #ffffff 100%);
-      border-bottom: 1px solid var(--line);
-    }
-
-    .provider-head-top {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      gap: 14px;
-      margin-bottom: 10px;
-      flex-wrap: wrap;
-    }
-
-    .provider-name {
-      font-family: 'Playfair Display', serif;
-      color: var(--blue);
-      font-size: 1.45rem;
-      font-weight: 700;
-    }
-
-    .provider-tag {
-      background: rgba(246, 123, 28, 0.12);
-      color: var(--orange);
-      padding: 8px 14px;
-      border-radius: 999px;
-      font-weight: 700;
-      font-size: 0.85rem;
-      white-space: nowrap;
-    }
-
-    .pickup-address {
-      color: var(--muted);
-      font-size: 0.98rem;
-      line-height: 1.6;
-      margin-bottom: 16px;
-    }
-
-    .map-wrap {
-      border-radius: 20px;
-      overflow: hidden;
-      border: 1px solid #d9e0ef;
-      background: #edf3ff;
-      height: 280px;
-      position: relative;
-    }
-
-    .provider-map {
-      width: 100%;
-      height: 100%;
-    }
-
-    .map-caption {
-      margin-top: 10px;
-      color: var(--muted);
-      font-size: 0.88rem;
-    }
-
-    .provider-body {
-      padding: 18px 20px 20px;
-      display: grid;
-      gap: 14px;
-    }
-
-    .provider-items-title {
-      font-weight: 800;
-      color: var(--blue);
-      font-size: 1rem;
-      margin-bottom: 2px;
-    }
-
-    .checkout-item {
-      display: grid;
-      grid-template-columns: 84px 1fr auto;
-      gap: 14px;
-      align-items: center;
-      background: var(--white);
-      border: 1px solid var(--line);
-      border-radius: 18px;
-      padding: 12px;
-    }
-
-    .checkout-item .item-thumb {
-      width: 84px;
-      height: 84px;
-      border-radius: 16px;
-      overflow: hidden;
-      background: #f2f4f8;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    .checkout-item .item-thumb img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-    }
-
-    .checkout-item .item-info h4 {
-      font-size: 1rem;
-      margin-bottom: 6px;
-      color: var(--text);
-      font-weight: 700;
-    }
-
-    .checkout-item .item-info .meta {
-      color: var(--muted);
-      font-size: 0.92rem;
-      line-height: 1.55;
-    }
-
-    .checkout-item .item-price {
-      text-align: right;
-      min-width: 110px;
-    }
-
-    .checkout-item .item-price .line-total {
-      color: var(--blue);
-      font-weight: 800;
-      font-size: 1rem;
-      margin-bottom: 6px;
-    }
-
-    .checkout-item .item-price .unit {
-      color: var(--muted);
-      font-size: 0.86rem;
-    }
-
-    .pickup-time-box {
-      margin-top: 6px;
-      display: grid;
-      gap: 10px;
-    }
-
-    .pickup-time-box label {
-      color: var(--blue);
-      font-weight: 700;
-      font-size: 0.96rem;
-    }
-
-    .pickup-time-box select {
-      width: 100%;
-      border: 1px solid #d4d9e5;
-      background: #fff;
-      border-radius: 14px;
-      padding: 12px 14px;
-      font: inherit;
-      color: var(--text);
-      outline: none;
-    }
-
-    .pickup-time-box select:focus {
-      border-color: var(--orange);
-      box-shadow: 0 0 0 4px rgba(246, 123, 28, 0.12);
-    }
-
-    .order-summary-card {
-      background: var(--white);
-      border: 1px solid var(--line);
-      border-radius: var(--radius-xl);
-      box-shadow: var(--card-shadow);
-      padding: 24px;
-    }
-
-    .order-summary-card h3 {
-      font-family: 'Playfair Display', serif;
-      color: var(--blue);
-      font-size: 1.55rem;
-      margin-bottom: 18px;
-    }
-
-    .summary-list {
-      display: grid;
-      gap: 14px;
-      margin-bottom: 18px;
-    }
-
-    .summary-row {
-      display: flex;
-      justify-content: space-between;
-      gap: 12px;
-      color: var(--text);
-      font-size: 0.97rem;
-    }
-
-    .summary-row span:last-child {
-      font-weight: 700;
-      color: var(--blue);
-    }
-
-    .summary-total {
-      border-top: 1px dashed #d8dbe4;
-      padding-top: 16px;
-      margin-top: 8px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 12px;
-      font-size: 1.08rem;
-      font-weight: 800;
-      color: var(--blue);
-    }
-
-    .summary-note {
-      margin-top: 14px;
-      color: var(--muted);
-      font-size: 0.9rem;
-      line-height: 1.6;
-    }
-
-    .primary-btn,
-    .secondary-btn {
-      width: 100%;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      min-height: 54px;
-      border-radius: 999px;
-      font-weight: 800;
-      font-size: 1rem;
-      cursor: pointer;
-      transition: transform .18s ease, box-shadow .18s ease, background .18s ease;
-      border: none;
-      margin-top: 18px;
-    }
-
-    .primary-btn {
-      background: var(--orange);
-      color: #fff;
-      box-shadow: 0 16px 30px rgba(246, 123, 28, 0.25);
-    }
-
-    .primary-btn:hover {
-      transform: translateY(-1px);
-    }
-
-    .secondary-btn {
-      background: transparent;
-      border: 2px solid var(--blue);
-      color: var(--blue);
-      margin-top: 12px;
-    }
-
-    .secondary-btn:hover {
-      background: rgba(5, 30, 107, 0.04);
-    }
-
-    .empty-state {
-      text-align: center;
-      padding: 48px 22px;
-    }
-
-    .empty-state h2 {
-      font-family: 'Playfair Display', serif;
-      color: var(--blue);
-      font-size: 2rem;
-      margin-bottom: 12px;
-    }
-
-    .empty-state p {
-      color: var(--muted);
-      margin-bottom: 22px;
-      line-height: 1.7;
-    }
-
-    .alert-error {
-      border: 1px solid #f4b7b7;
-      background: #fff3f3;
-      color: #9b1c1c;
-      border-radius: 18px;
-      padding: 16px 18px;
-      margin-bottom: 18px;
-      font-weight: 600;
-      line-height: 1.55;
-    }
-
-    .site-footer {
-      background: var(--blue);
-      color: #fff;
-      margin-top: 48px;
-    }
-
-    .site-footer .inner {
-      width: min(1200px, calc(100% - 32px));
-      margin: 0 auto;
-      padding: 24px 0;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 16px;
-      flex-wrap: wrap;
-    }
-
-    .footer-brand {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      font-family: 'Playfair Display', serif;
-      font-weight: 700;
-      font-size: 1.25rem;
-    }
-
-    .footer-brand img {
-      height: 34px;
-      object-fit: contain;
-    }
-
-    .footer-links {
-      display: flex;
-      gap: 18px;
-      flex-wrap: wrap;
-      font-size: 0.95rem;
-      opacity: 0.96;
-    }
-
-    @media (max-width: 992px) {
-      .checkout-grid {
-        grid-template-columns: 1fr;
-      }
-
-      .summary-column {
-        position: static;
-      }
-    }
-
-    @media (max-width: 720px) {
-      .site-header .inner,
-      .site-footer .inner,
-      .page-shell {
-        width: min(100% - 20px, 1200px);
-      }
-
-      .checkout-item {
-        grid-template-columns: 72px 1fr;
-      }
-
-      .checkout-item .item-price {
-        grid-column: 2 / 3;
-        text-align: left;
-        min-width: auto;
-      }
-
-      .provider-head-top {
-        align-items: stretch;
-      }
-
-      .map-wrap {
-        height: 230px;
-      }
+    *{box-sizing:border-box}
+    html,body{margin:0;padding:0}
+    body{background:#e8eef5;color:#1b2f74;font-family:'Playfair Display',serif}
+    a{text-decoration:none}
+
+    /* ── NAV ── */
+    nav{display:flex;align-items:center;justify-content:space-between;padding:0 48px;height:72px;background:linear-gradient(90deg,#1a3a6b 0%,#2255a4 60%,#3a7bd5 100%);position:sticky;top:0;z-index:100;box-shadow:0 2px 16px rgba(26,58,107,.18)}
+    .nav-left{display:flex;align-items:center;gap:16px}
+    .nav-logo{height:100px}
+    .nav-cart{width:40px;height:40px;border-radius:50%;border:2px solid rgba(255,255,255,.7);display:flex;justify-content:center;align-items:center;cursor:pointer;text-decoration:none;transition:background .2s}
+    .nav-cart:hover{background:rgba(255,255,255,.15)}
+    .nav-center{display:flex;align-items:center;gap:40px}
+    .nav-center a{color:rgba(255,255,255,.85);text-decoration:none;font-weight:500;font-size:15px;transition:color .2s}
+    .nav-center a:hover,.nav-center a.active{color:#fff}
+    .nav-center a.active{font-weight:600;border-bottom:2px solid #fff;padding-bottom:2px}
+    .nav-right{display:flex;align-items:center;gap:12px}
+    .nav-search-wrap{position:relative}
+    .nav-search-wrap svg{position:absolute;left:12px;top:50%;transform:translateY(-50%);opacity:.6;pointer-events:none}
+    .nav-search-wrap input{background:rgba(255,255,255,.15);border:1.5px solid rgba(255,255,255,.4);border-radius:50px;padding:9px 16px 9px 36px;color:#fff;font-size:14px;outline:none;width:240px;font-family:'Playfair Display',serif;transition:width .3s,background .2s}
+    .nav-search-wrap input::placeholder{color:rgba(255,255,255,.6)}
+    .nav-search-wrap input:focus{width:300px;background:rgba(255,255,255,.25)}
+    .search-dropdown{display:none;position:absolute;top:calc(100% + 10px);right:0;width:380px;background:#fff;border-radius:16px;box-shadow:0 8px 40px rgba(26,58,107,.18);border:1.5px solid #e0eaf5;z-index:9999;overflow:hidden}
+    .search-dropdown.open{display:block}
+    .search-section-label{font-size:11px;font-weight:700;color:#b0c4d8;letter-spacing:.08em;text-transform:uppercase;padding:12px 16px 6px}
+    .search-item-row{display:flex;align-items:center;gap:12px;padding:10px 16px;cursor:pointer;transition:background .15s;text-decoration:none}
+    .search-item-row:hover{background:#f0f6ff}
+    .search-thumb{width:38px;height:38px;border-radius:10px;background:#e0eaf5;flex-shrink:0;object-fit:cover;display:flex;align-items:center;justify-content:center;font-size:18px}
+    .search-thumb img{width:100%;height:100%;object-fit:cover;border-radius:10px}
+    .search-item-name{font-size:14px;font-weight:700;color:#1a3a6b;font-family:'Playfair Display',serif}
+    .search-item-sub{font-size:12px;color:#7a8fa8}
+    .search-price{margin-left:auto;font-size:13px;font-weight:700;color:#e07a1a;white-space:nowrap}
+    .search-divider{height:1px;background:#f0f5fc;margin:4px 0}
+    .search-empty{padding:24px 16px;text-align:center;color:#b0c4d8;font-size:14px}
+    .search-loading{padding:18px 16px;text-align:center;color:#b0c4d8;font-size:13px}
+    .search-provider-logo{width:38px;height:38px;border-radius:50%;background:#e0eaf5;flex-shrink:0;overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700;color:#2255a4}
+    .search-provider-logo img{width:100%;height:100%;object-fit:cover}
+    .nav-avatar{width:38px;height:38px;border-radius:50%;border:2px solid rgba(255,255,255,.6);display:flex;align-items:center;justify-content:center;cursor:pointer}
+    .nav-bell-wrap{position:relative}
+    .nav-bell{width:38px;height:38px;border-radius:50%;border:2px solid rgba(255,255,255,.6);display:flex;align-items:center;justify-content:center;cursor:pointer;background:none;transition:background .2s}
+    .nav-bell:hover{background:rgba(255,255,255,.15)}
+    .notif-dropdown{display:none;position:absolute;top:48px;right:0;width:320px;background:#fff;border-radius:16px;box-shadow:0 8px 40px rgba(26,58,107,.18);border:1.5px solid #e0eaf5;z-index:9999;overflow:hidden}
+    .notif-dropdown.open{display:block}
+    .notif-header{display:flex;align-items:center;justify-content:space-between;padding:16px 18px 12px;border-bottom:1.5px solid #f0f5fc}
+    .notif-header-title{font-size:15px;font-weight:700;color:#1a3a6b;font-family:'Playfair Display',serif}
+    .notif-empty{padding:28px 18px;text-align:center;color:#b0c4d8;font-size:14px}
+
+    /* ── PAGE LAYOUT ── */
+    .page-wrap{max-width:900px;margin:0 auto;padding:28px 20px 60px}
+    .page-title-row{display:flex;align-items:center;gap:20px;margin:0 0 28px}
+    .back-btn{width:46px;height:46px;border-radius:50%;background:#cdd9e8;color:#1b3f92;display:flex;align-items:center;justify-content:center;font-size:28px;line-height:1;flex-shrink:0;font-weight:700;text-decoration:none}
+    .back-btn:hover{background:#bfcee2}
+    .page-title{font-size:62px;line-height:.95;margin:0;color:#183482;font-weight:700}
+
+    /* ── ERROR ── */
+    .error-box{background:#fff1f0;border:1.5px solid #f5c0bc;border-radius:16px;padding:14px 20px;color:#a03030;margin-bottom:20px;font-size:17px}
+
+    /* ── PROVIDER CARD ── */
+    .provider-block{background:#fff;border:1.8px solid #d2dce8;border-radius:28px;margin-bottom:24px;overflow:hidden;box-shadow:0 2px 12px rgba(26,58,107,.06)}
+    .provider-inner{display:grid;grid-template-columns:1fr 220px;gap:0}
+    .provider-left{padding:24px 26px}
+    .provider-right{padding:24px 20px;border-left:1.5px solid #e6edf5;display:flex;flex-direction:column;gap:12px}
+
+    /* Provider logo text */
+    .prov-logo-text{font-size:32px;font-weight:700;color:#c85a3a;letter-spacing:1px;text-transform:uppercase;margin-bottom:18px;font-family:'Playfair Display',serif}
+
+    /* Order heading */
+    .order-heading{font-size:22px;font-weight:700;color:#183482;margin:0 0 14px}
+
+    /* Item row in checkout */
+    .checkout-item-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+    .checkout-item-name{font-size:18px;font-weight:700;color:#183482}
+    .checkout-item-price{font-size:17px;color:#c87a30;font-weight:700}
+    .rial{font-size:13px;margin-right:2px}
+
+    /* Payment method */
+    .payment-line{font-size:17px;color:#183482;margin-top:14px;display:flex;align-items:center;gap:8px}
+    .payment-label{font-weight:700}
+
+    /* Pickup time (subtle) */
+    .pickup-time-row{margin-top:14px}
+    .pickup-time-row label{font-size:14px;color:#6a7fa0;display:block;margin-bottom:6px}
+    .pickup-time-row select{width:100%;border:1.5px solid #d2dce8;border-radius:12px;padding:8px 12px;font-family:'Playfair Display',serif;font-size:14px;color:#183482;background:#f8fafc;outline:none;cursor:pointer}
+
+    /* Right side – map */
+    .pickup-label{font-size:16px;font-weight:700;color:#183482;text-align:center;margin-bottom:10px}
+    .provider-map{width:100%;height:160px;border-radius:18px;border:1.5px solid #d2dce8;background:#dde8f2;overflow:hidden}
+    .map-fallback{width:100%;height:160px;border-radius:18px;background:linear-gradient(135deg,#86b1d8 0%,#d5e6f1 100%);display:flex;align-items:center;justify-content:center;text-align:center;color:#183482;font-size:13px;padding:12px}
+    .pickup-address{font-size:13px;color:#4d6186;text-align:center;margin-top:8px}
+
+    /* ── TOTAL & PLACE ORDER ── */
+    .total-section{margin-top:8px;padding-bottom:8px}
+    .total-row{display:flex;align-items:center;gap:14px;margin-bottom:24px}
+    .total-label{font-size:32px;font-weight:700;color:#183482}
+    .total-amount{font-size:32px;font-weight:700;color:#ea8b2c}
+    .rial-lg{font-size:22px;margin-right:2px}
+    .place-order-btn{display:block;width:100%;background:#173993;color:#fff;border:none;border-radius:22px;padding:22px 20px;font-size:30px;font-family:'Playfair Display',serif;cursor:pointer;text-align:center;transition:background .2s}
+    .place-order-btn:hover{background:#0f2874}
+
+    /* ── FOOTER ── */
+    footer{background:linear-gradient(90deg,#1a3a6b 0%,#2255a4 60%,#3a7bd5 100%);padding:28px 48px;display:flex;flex-direction:column;align-items:center;gap:14px;margin-top:40px}
+    .footer-top{display:flex;align-items:center;gap:18px;flex-wrap:wrap;justify-content:center}
+    .social-icon{width:42px;height:42px;border-radius:50%;border:1.5px solid rgba(255,255,255,.5);display:flex;align-items:center;justify-content:center;color:#fff;font-size:16px;font-weight:700;cursor:pointer;text-decoration:none;transition:background .2s}
+    .social-icon:hover{background:rgba(255,255,255,.15)}
+    .footer-divider{width:1px;height:22px;background:rgba(255,255,255,.3)}
+    .footer-brand{display:flex;align-items:center;gap:8px;color:#fff;font-size:16px;font-weight:700}
+    .footer-email{display:flex;align-items:center;gap:6px;color:rgba(255,255,255,.9);font-size:14px}
+    .footer-bottom{display:flex;align-items:center;gap:8px;color:rgba(255,255,255,.7);font-size:13px;flex-wrap:wrap;justify-content:center}
+
+    @media(max-width:700px){
+      .provider-inner{grid-template-columns:1fr}
+      .provider-right{border-left:none;border-top:1.5px solid #e6edf5}
+      .page-title{font-size:42px}
+      nav{padding:0 18px}
+      .nav-center{display:none}
+      footer{padding:24px 18px}
     }
   </style>
 </head>
 <body>
 
-<header class="site-header">
-  <div class="inner">
-    <a class="brand" href="../shared/landing.php">
-      <img src="../../images/Replate-logo.png" alt="RePlate">
-      <span>RePlate</span>
+<!-- NAV -->
+<nav>
+  <div class="nav-left">
+    <img class="nav-logo" src="../../images/Replate-white.png" alt="RePlate Logo" />
+    <a href="../customer/cart.php" class="nav-cart">
+      <img src="../../images/Shopping cart.png" alt="Cart" style="width:40px;height:40px;object-fit:contain;" />
     </a>
-
-    <nav class="nav-links">
-      <a href="../shared/landing.php">Home</a>
-      <a href="providers-list.php">Providers</a>
-      <a href="cart.php">Cart</a>
-      <a href="checkout.php" class="active">Checkout</a>
-      <a href="orders.php">Orders</a>
-      <a href="customer-profile.php">Profile</a>
-    </nav>
   </div>
-</header>
+  <div class="nav-center">
+    <a href="../shared/landing.php">Home Page</a>
+    <a href="category.php">Categories</a>
+    <a href="providers-list.php">Providers</a>
+  </div>
+  <div class="nav-right">
+    <div class="nav-search-wrap" id="searchWrap">
+      <svg width="16" height="16" fill="none" stroke="#fff" stroke-width="2" viewBox="0 0 24 24">
+        <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
+      </svg>
+      <input type="text" id="searchInput" placeholder="Search products or providers..." autocomplete="off"/>
+      <div class="search-dropdown" id="searchDropdown"></div>
+    </div>
+    <div class="nav-bell-wrap">
+      <button class="nav-bell" type="button" onclick="toggleNotifDropdown()">
+        <svg width="18" height="18" fill="none" stroke="#fff" stroke-width="1.8" viewBox="0 0 24 24"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+      </button>
+      <div class="notif-dropdown" id="notifDropdown">
+        <div class="notif-header">
+          <span class="notif-header-title">Notifications</span>
+          <span style="font-size:12px;color:#b0c4d8;">0 alerts</span>
+        </div>
+        <div class="notif-empty">No notifications right now</div>
+      </div>
+    </div>
+    <a href="customer-profile.php" class="nav-avatar">
+      <svg width="20" height="20" fill="none" stroke="#fff" stroke-width="1.8" viewBox="0 0 24 24">
+        <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/>
+      </svg>
+    </a>
+  </div>
+</nav>
 
-<div class="page-shell">
-  <div class="breadcrumb">Home / Cart / <strong>Checkout</strong></div>
-
+<div class="page-wrap">
   <div class="page-title-row">
-    <h1>Checkout</h1>
+    <a class="back-btn" href="cart.php">‹</a>
+    <h1 class="page-title">Order details</h1>
   </div>
 
   <?php if ($error): ?>
-    <div class="alert-error"><?= htmlspecialchars($error) ?></div>
+    <div class="error-box"><?= htmlspecialchars($error) ?></div>
   <?php endif; ?>
 
   <?php if (empty($enriched)): ?>
-    <div class="section-card empty-state">
-      <h2>Your cart is empty</h2>
-      <p>Add items to your cart first, then come back here to review provider pickup locations and place your order.</p>
-      <a class="primary-btn" href="providers-list.php" style="max-width: 280px; margin: 0 auto;">Browse Providers</a>
-    </div>
+    <div style="text-align:center;padding:60px 12px;color:#6d7da0;font-size:24px;">Your cart is empty.</div>
   <?php else: ?>
-    <form method="POST">
-      <div class="checkout-grid">
-        <div class="main-column">
 
-          <div class="section-card">
-            <div class="section-title">
-              <div>
-                <h2>Pickup by Provider</h2>
-                <p>Each provider section shows one read-only pickup map using the provider’s saved location.</p>
+  <form method="POST">
+    <?php foreach ($groupedByProvider as $providerId => $group): ?>
+      <?php
+        $provider     = $group['provider'];
+        $location     = $group['location'];
+        $providerName = $provider['businessName'] ?? 'Provider';
+        $mapId        = 'providerMap_' . preg_replace('/[^a-zA-Z0-9_]/', '_', $providerId);
+        $lat          = $location['coordinates']['lat'] ?? null;
+        $lng          = $location['coordinates']['lng'] ?? null;
+        $times        = $group['pickupTimes'];
+        if (empty($times)) $times = ['Anytime'];
+      ?>
+      <div class="provider-block">
+        <div class="provider-inner">
+
+          <!-- LEFT: order items -->
+          <div class="provider-left">
+            <div class="prov-logo-text"><?= htmlspecialchars(strtoupper($providerName)) ?></div>
+            <div class="order-heading">Order</div>
+
+            <?php foreach ($group['items'] as $entry): ?>
+              <?php $ci = $entry['cartItem']; ?>
+              <div class="checkout-item-row">
+                <span class="checkout-item-name"><?= htmlspecialchars($ci['itemName'] ?? 'Item') ?></span>
+                <span class="checkout-item-price"><span class="rial">﷼</span><?= number_format((float)($ci['price'] ?? 0), 2) ?></span>
               </div>
-            </div>
-
-            <?php foreach ($groupedByProvider as $providerId => $group): ?>
-              <?php
-                $provider = $group['provider'];
-                $location = $group['location'];
-
-                $providerName = $provider['businessName'] ?? 'Provider';
-                $providerCategory = $provider['category'] ?? 'Pickup';
-                $mapId = 'providerMap_' . preg_replace('/[^a-zA-Z0-9_]/', '_', $providerId);
-
-                $lat = $location['coordinates']['lat'] ?? null;
-                $lng = $location['coordinates']['lng'] ?? null;
-
-                $times = $group['pickupTimes'];
-                if (empty($times)) {
-                    $times = ['Anytime'];
-                }
-              ?>
-              <section class="provider-block">
-                <div class="provider-head">
-                  <div class="provider-head-top">
-                    <div>
-                      <div class="provider-name"><?= htmlspecialchars($providerName) ?></div>
-                    </div>
-                    <div class="provider-tag"><?= htmlspecialchars($providerCategory) ?></div>
-                  </div>
-
-                  <div class="pickup-address">
-                    <?= htmlspecialchars($group['locationStr'] ?: 'Pickup location available after provider setup.') ?>
-                  </div>
-
-                  <?php if ($lat !== null && $lng !== null): ?>
-                    <div class="map-wrap">
-                      <div id="<?= htmlspecialchars($mapId) ?>" class="provider-map"></div>
-                    </div>
-                    <div class="map-caption">
-                      View-only provider pickup location.
-                    </div>
-                  <?php else: ?>
-                    <div class="map-wrap" style="display:flex; align-items:center; justify-content:center; color:#6e7583; font-weight:600;">
-                      Location coordinates are not available.
-                    </div>
-                  <?php endif; ?>
-                </div>
-
-                <div class="provider-body">
-                  <div class="provider-items-title">Items from <?= htmlspecialchars($providerName) ?></div>
-
-                  <?php foreach ($group['items'] as $entry): ?>
-                    <?php
-                      $ci   = $entry['cartItem'];
-                      $item = $entry['item'];
-                      $thumb = $item['photoUrl'] ?? '';
-                    ?>
-                    <div class="checkout-item">
-                      <div class="item-thumb">
-                        <?php if ($thumb): ?>
-                          <img src="<?= htmlspecialchars($thumb) ?>" alt="<?= htmlspecialchars($ci['itemName'] ?? 'Item') ?>">
-                        <?php else: ?>
-                          <div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:#8b94a7;font-size:.9rem;">No image</div>
-                        <?php endif; ?>
-                      </div>
-
-                      <div class="item-info">
-                        <h4><?= htmlspecialchars($ci['itemName'] ?? 'Item') ?></h4>
-                        <div class="meta">
-                          Quantity: <?= (int)($ci['quantity'] ?? 1) ?><br>
-                          Pickup from: <?= htmlspecialchars($group['locationStr']) ?>
-                        </div>
-                      </div>
-
-                      <div class="item-price">
-                        <div class="line-total"><?= number_format((float)$entry['lineTotal'], 2) ?> SAR</div>
-                        <div class="unit"><?= number_format((float)($ci['price'] ?? 0), 2) ?> SAR each</div>
-                      </div>
-                    </div>
-                  <?php endforeach; ?>
-
-                  <div class="pickup-time-box">
-                    <label for="pickup_<?= htmlspecialchars($providerId) ?>">Select pickup time for <?= htmlspecialchars($providerName) ?></label>
-                    <select
-                      id="pickup_<?= htmlspecialchars($providerId) ?>"
-                      name="selectedPickupTime[<?= htmlspecialchars($providerId) ?>]"
-                      required
-                    >
-                      <?php foreach ($times as $time): ?>
-                        <option value="<?= htmlspecialchars($time) ?>"><?= htmlspecialchars($time) ?></option>
-                      <?php endforeach; ?>
-                    </select>
-                  </div>
-                </div>
-              </section>
             <?php endforeach; ?>
+
+            <div class="payment-line">
+              <span class="payment-label">Payment method:</span>
+              <span>Cash</span>
+              <span>💵</span>
+            </div>
+
+            <!-- Pickup time (required by backend) -->
+            <div class="pickup-time-row">
+              <label for="pickup_<?= htmlspecialchars($providerId) ?>">Pickup time</label>
+              <select id="pickup_<?= htmlspecialchars($providerId) ?>"
+                      name="selectedPickupTime[<?= htmlspecialchars($providerId) ?>]" required>
+                <?php foreach ($times as $time): ?>
+                  <option value="<?= htmlspecialchars($time) ?>"><?= htmlspecialchars($time) ?></option>
+                <?php endforeach; ?>
+              </select>
+            </div>
           </div>
+
+          <!-- RIGHT: pickup map -->
+          <div class="provider-right">
+            <div class="pickup-label">Pick up location</div>
+            <?php if ($lat !== null && $lng !== null): ?>
+              <div id="<?= htmlspecialchars($mapId) ?>" class="provider-map"></div>
+            <?php else: ?>
+              <div class="map-fallback">Location not available</div>
+            <?php endif; ?>
+            <div class="pickup-address"><?= htmlspecialchars($group['locationStr'] ?: 'Pickup location') ?></div>
+          </div>
+
         </div>
-
-        <aside class="summary-column">
-          <div class="order-summary-card">
-            <h3>Order Summary</h3>
-
-            <div class="summary-list">
-              <div class="summary-row">
-                <span>Providers</span>
-                <span><?= count($groupedByProvider) ?></span>
-              </div>
-
-              <div class="summary-row">
-                <span>Total Items</span>
-                <span><?= count($enriched) ?></span>
-              </div>
-
-              <?php foreach ($groupedByProvider as $group): ?>
-                <div class="summary-row">
-                  <span><?= htmlspecialchars($group['provider']['businessName'] ?? 'Provider') ?></span>
-                  <span><?= number_format((float)$group['groupSubtotal'], 2) ?> SAR</span>
-                </div>
-              <?php endforeach; ?>
-            </div>
-
-            <div class="summary-total">
-              <span>Total</span>
-              <span><?= number_format($total, 2) ?> SAR</span>
-            </div>
-
-            <div class="summary-note">
-              Pickup locations are provided by each provider and shown here in view-only mode. After placing your order, the selected pickup details will be saved with your order items.
-            </div>
-
-            <button type="submit" class="primary-btn">Place Order</button>
-            <a href="cart.php" class="secondary-btn">Back to Cart</a>
-          </div>
-        </aside>
       </div>
-    </form>
+    <?php endforeach; ?>
+
+    <!-- TOTAL & PLACE ORDER -->
+    <div class="total-section">
+      <div class="total-row">
+        <span class="total-label">Total Amount</span>
+        <span class="total-amount"><span class="rial-lg">﷼</span><?= number_format($total, 2) ?></span>
+      </div>
+      <button type="submit" class="place-order-btn">Place order</button>
+    </div>
+
+  </form>
+
   <?php endif; ?>
 </div>
 
-<footer class="site-footer">
-  <div class="inner">
+<!-- FOOTER -->
+<footer>
+  <div class="footer-top">
+    <a href="#" class="social-icon">in</a>
+    <a href="#" class="social-icon">&#120143;</a>
+    <a href="#" class="social-icon">&#9834;</a>
+    <div class="footer-divider"></div>
     <div class="footer-brand">
-      <img src="../../images/Replate-white.png" alt="RePlate">
+      <img src="../../images/Replate-white.png" alt="RePlate" style="height:24px;object-fit:contain;" />
       <span>RePlate</span>
     </div>
-
-    <div class="footer-links">
-      <a href="../shared/landing.php">Home</a>
-      <a href="providers-list.php">Providers</a>
-      <a href="orders.php">Orders</a>
-      <a href="contact.php">Contact</a>
+    <div class="footer-divider"></div>
+    <div class="footer-email">
+      <svg width="16" height="16" fill="none" stroke="rgba(255,255,255,.85)" stroke-width="2" viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M2 7l10 7 10-7"/></svg>
+      <span>Replate@gmail.com</span>
     </div>
+  </div>
+  <div class="footer-bottom">
+    <span>© 2026</span>
+    <img src="../../images/Replate-white.png" alt="" style="height:15px;object-fit:contain;opacity:.8;" />
+    <span>All rights reserved.</span>
   </div>
 </footer>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
+  function toggleNotifDropdown(){
+    const el = document.getElementById('notifDropdown');
+    if(el) el.classList.toggle('open');
+  }
+
   document.addEventListener('DOMContentLoaded', function () {
     <?php foreach ($groupedByProvider as $providerId => $group): ?>
       <?php
@@ -948,38 +491,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       <?php if ($lat !== null && $lng !== null): ?>
         (function () {
           const map = L.map('<?= $mapId ?>', {
-            zoomControl: true,
-            dragging: true,
-            scrollWheelZoom: false,
-            doubleClickZoom: false,
-            boxZoom: false,
-            keyboard: false,
-            tap: false,
-            touchZoom: true
+            zoomControl: false, dragging: false, scrollWheelZoom: false,
+            doubleClickZoom: false, boxZoom: false, keyboard: false, tap: false, touchZoom: false
           }).setView([<?= (float)$lat ?>, <?= (float)$lng ?>], 14);
-
           L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '&copy; OpenStreetMap contributors'
           }).addTo(map);
-
           L.marker([<?= (float)$lat ?>, <?= (float)$lng ?>]).addTo(map);
-
-          map.dragging.disable();
-          map.scrollWheelZoom.disable();
-          map.doubleClickZoom.disable();
-          map.boxZoom.disable();
-          map.keyboard.disable();
-
-          if (map.tap) map.tap.disable();
-
-          setTimeout(function () {
-            map.invalidateSize();
-          }, 150);
+          setTimeout(function(){ map.invalidateSize(); }, 150);
         })();
       <?php endif; ?>
     <?php endforeach; ?>
   });
-</script>
 
+  (function(){
+    const input = document.getElementById('searchInput');
+    const dropdown = document.getElementById('searchDropdown');
+    const wrap = document.getElementById('searchWrap');
+    if(!input||!dropdown||!wrap) return;
+    let timer = null;
+    function render(data){
+      const items = Array.isArray(data.items)?data.items:[];
+      const providers = Array.isArray(data.providers)?data.providers:[];
+      if(!items.length&&!providers.length){ dropdown.innerHTML='<div class="search-empty">No matches found</div>'; dropdown.classList.add('open'); return; }
+      let html='';
+      if(items.length){ html+='<div class="search-section-label">Items</div>'; items.forEach(item=>{ const thumb=item.photoUrl?`<div class="search-thumb"><img src="${item.photoUrl}" alt=""></div>`:'<div class="search-thumb">🛍</div>'; html+=`<a class="search-item-row" href="item-details.php?id=${item.id}">${thumb}<div><div class="search-item-name">${item.name}</div><div class="search-item-sub">${item.listingType||''}</div></div><div class="search-price">${item.price||''}</div></a>`; }); }
+      if(providers.length){ if(items.length) html+='<div class="search-divider"></div>'; html+='<div class="search-section-label">Providers</div>'; providers.forEach(p=>{ const logo=p.businessLogo?`<div class="search-provider-logo"><img src="${p.businessLogo}" alt=""></div>`:`<div class="search-provider-logo">${(p.businessName||'P').charAt(0)}</div>`; html+=`<a class="search-item-row" href="providers-list.php">${logo}<div><div class="search-item-name">${p.businessName||''}</div><div class="search-item-sub">${p.category||''}</div></div></a>`; }); }
+      dropdown.innerHTML=html; dropdown.classList.add('open');
+    }
+    input.addEventListener('input',function(){ const q=this.value.trim(); clearTimeout(timer); if(q.length<2){ dropdown.classList.remove('open'); dropdown.innerHTML=''; return; } dropdown.innerHTML='<div class="search-loading">Searching...</div>'; dropdown.classList.add('open'); timer=setTimeout(()=>{ fetch('../../back-end/search.php?q='+encodeURIComponent(q)).then(r=>r.json()).then(render).catch(()=>{ dropdown.innerHTML='<div class="search-empty">Search unavailable</div>'; dropdown.classList.add('open'); }); },220); });
+    document.addEventListener('click',function(e){ const notif=document.getElementById('notifDropdown'); const bellWrap=document.querySelector('.nav-bell-wrap'); if(notif&&bellWrap&&!bellWrap.contains(e.target)) notif.classList.remove('open'); if(!wrap.contains(e.target)) dropdown.classList.remove('open'); });
+  })();
+</script>
 </body>
 </html>
