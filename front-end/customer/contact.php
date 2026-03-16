@@ -211,13 +211,14 @@ nav{display:flex;align-items:center;justify-content:space-between;padding:0 48px
 .sidebar{width:240px;min-height:calc(100vh - 72px);background:#2255a4;display:flex;flex-direction:column;padding:28px 24px 24px;flex-shrink:0}
 .sidebar-welcome{color:rgba(255,255,255,.75);font-size:16px;font-weight:400;margin-bottom:2px}
 .sidebar-name{color:rgba(255,255,255,.55);font-size:36px;font-weight:700;line-height:1.1;margin-bottom:20px}
-.sidebar-nav{display:flex;flex-direction:column;gap:2px;flex:1;background:transparent}
+.sidebar-nav{display:flex;flex-direction:column;gap:0;background:transparent}
+.sidebar-logout{margin-top:auto}
 .sidebar-link{display:flex;align-items:center;gap:10px;color:rgba(255,255,255,.75);text-decoration:none;font-size:16px;font-weight:400;padding:8px 8px;border-radius:0;transition:color .2s;background:none !important}
 .sidebar-link:hover{color:#fff;background:none !important}
 .sidebar-link.active{color:#fff !important;font-weight:700;border-bottom:2px solid rgba(255,255,255,.5);background:none !important;padding-bottom:6px}
 .sidebar-link svg{flex-shrink:0;opacity:.8}
 .sidebar-link.active svg{opacity:1}
-.sidebar-logout{margin-top:24px;background:#fff;color:#1a3a6b;border:none;border-radius:50px;padding:12px 0;font-size:16px;font-weight:700;font-family:'Playfair Display',serif;cursor:pointer;width:100%;transition:background .2s;text-align:center}
+.sidebar-logout{margin-top:32px;background:#fff;color:#1a3a6b;border:none;border-radius:50px;padding:12px 0;font-size:16px;font-weight:700;font-family:'Playfair Display',serif;cursor:pointer;width:100%;transition:background .2s;text-align:center}
 .sidebar-logout:hover{background:#e8f0ff}
 .sidebar-footer{margin-top:24px;padding-top:18px;border-top:1px solid rgba(255,255,255,.15);display:flex;flex-direction:column;gap:12px;align-items:center}
 .sidebar-footer-social{display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap}
