@@ -78,7 +78,7 @@ function rp_footer(){ ?>
 </footer>
 <?php }
 
-function rp_top_header($active='') { ?>
+function rp_top_header($active='') { global $alertCount, $expiryAlerts; ?>
 <nav>
   <div class="nav-left">
     <img class="nav-logo" src="../../images/Replate-white.png" alt="RePlate Logo" />
