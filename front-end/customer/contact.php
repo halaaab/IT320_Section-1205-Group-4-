@@ -277,28 +277,7 @@ $tickets = $ticketModel->getByCustomer($customerId);
 
 </div>
 
-<footer>
-  <div class="footer-top">
-    <a href="#" class="social-icon">in</a>
-    <a href="#" class="social-icon">&#120143;</a>
-    <a href="#" class="social-icon">&#9834;</a>
-    <div class="footer-divider"></div>
-    <div class="footer-brand">
-      <img src="../../images/Replate-white.png" alt="RePlate" style="height:24px;object-fit:contain;"/>
-      <span>RePlate</span>
-    </div>
-    <div class="footer-divider"></div>
-    <div class="footer-email">
-      <svg width="16" height="16" fill="none" stroke="rgba(255,255,255,0.85)" stroke-width="2" viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M2 7l10 7 10-7"/></svg>
-      <span>Replate@gmail.com</span>
-    </div>
-  </div>
-  <div class="footer-bottom">
-    <span>© 2026</span>
-    <img src="../../images/Replate-white.png" alt="" style="height:15px;object-fit:contain;opacity:0.8;"/>
-    <span>All rights reserved.</span>
-  </div>
-</footer>
+
 
 <script>
 function toggleNotifDropdown(){
