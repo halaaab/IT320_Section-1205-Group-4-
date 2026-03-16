@@ -66,8 +66,8 @@ function rp_top_header($active='') { ?>
   </div>
   <div class="nav-center">
     <a href="../shared/landing.php" class="<?= $active==='home'?'active':'' ?>">Home Page</a>
-    <a href="category.php" class="<?= $active==='categories'?'active':'' ?>">Categories</a>
-    <a href="providers-list.php" class="<?= $active==='providers'?'active':'' ?>">Providers</a>
+    <a href="../shared/landing.php#categories" class="<?= $active==='categories'?'active':'' ?>">Categories</a>
+    <a href="../shared/landing.php#providers" class="<?= $active==='providers'?'active':'' ?>">Providers</a>
   </div>
   <div class="nav-right">
     <div class="nav-search-wrap" id="searchWrap">
@@ -350,7 +350,7 @@ function toggleNotifDropdown(){
       html += '<div class="search-section-label">Providers</div>';
       providers.forEach(p => {
         const logo = p.businessLogo ? `<div class="search-provider-logo"><img src="${p.businessLogo}" alt=""></div>` : `<div class="search-provider-logo">${(p.businessName||'P').charAt(0)}</div>`;
-        html += `<a class="search-item-row" href="providers-list.php">${logo}<div><div class="search-item-name">${p.businessName || ''}</div><div class="search-item-sub">${p.category || ''}</div></div></a>`;
+        html += `<a class="search-item-row" href="../shared/landing.php#providers">${logo}<div><div class="search-item-name">${p.businessName || ''}</div><div class="search-item-sub">${p.category || ''}</div></div></a>`;
       });
     }
     dropdown.innerHTML = html;
