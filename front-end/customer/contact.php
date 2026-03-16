@@ -112,49 +112,55 @@ function rp_top_header($active='') { ?>
 <?php }
 
 function rp_sidebar($firstName, $active='contact'){ ?>
-<aside class="sidebar">
-  <p class="sidebar-welcome">Welcome Back ,</p>
-  <p class="sidebar-name"><?= rp_h($firstName) ?></p>
-  <nav class="sidebar-nav">
-    <a href="customer-profile.php" class="sidebar-link <?= $active==='profile'?'active':'' ?>">
-      <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-      Profile
-    </a>
-    <a href="favorites.php" class="sidebar-link <?= $active==='favorites'?'active':'' ?>">
-      <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2z"/></svg>
-      Favourites
-    </a>
-    <a href="orders.php" class="sidebar-link <?= $active==='orders'?'active':'' ?>">
-      <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/></svg>
-      Orders
-    </a>
-    <a href="#" class="sidebar-link <?= $active==='notification'?'active':'' ?>">
-      <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
-      Notification
-    </a>
-    <a href="contact.php" class="sidebar-link <?= $active==='contact'?'active':'' ?>">
-      <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
-      Contact Us
-    </a>
-  </nav>
-  <button class="sidebar-logout" onclick="window.location.href='customer-profile.php?logout=1'">Log out</button>
-  <div class="sidebar-footer">
-    <div class="sidebar-footer-social">
-      <a href="#" class="sidebar-social-icon">in</a>
-      <a href="#" class="sidebar-social-icon">&#120143;</a>
-      <a href="#" class="sidebar-social-icon">&#9834;</a>
-      <img src="../../images/Replate-white.png" alt="RePlate" style="height:22px;object-fit:contain;opacity:0.75;margin-left:4px;"/>
+<aside style="width:240px;min-height:calc(100vh - 72px);background:#2255a4;display:flex;flex-direction:column;padding:28px 20px 20px;flex-shrink:0;box-sizing:border-box;">
+
+  <div style="color:rgba(255,255,255,.75);font-size:15px;font-weight:400;margin:0;padding:0;line-height:1.4;">Welcome Back ,</div>
+  <div style="color:rgba(255,255,255,.55);font-size:32px;font-weight:700;line-height:1.1;margin:0 0 20px 0;padding:0;font-family:'Playfair Display',serif;"><?= rp_h($firstName) ?></div>
+
+  <?php
+  $links = [
+    ['href'=>'customer-profile.php', 'key'=>'profile', 'label'=>'Profile', 'icon'=>'<path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/>'],
+    ['href'=>'favorites.php',         'key'=>'favorites','label'=>'Favourites','icon'=>'<path d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2z"/>'],
+    ['href'=>'orders.php',            'key'=>'orders',   'label'=>'Orders',    'icon'=>'<path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/>'],
+    ['href'=>'#',                     'key'=>'notification','label'=>'Notification','icon'=>'<path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/>'],
+    ['href'=>'contact.php',           'key'=>'contact',  'label'=>'Contact Us','icon'=>'<path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/>'],
+  ];
+  foreach ($links as $link):
+    $isActive = $active === $link['key'];
+    $style = $isActive
+      ? 'display:flex;align-items:center;gap:10px;color:#fff;text-decoration:none;font-size:15px;font-weight:700;padding:9px 6px 5px;border-bottom:2px solid rgba(255,255,255,.5);margin-bottom:2px;'
+      : 'display:flex;align-items:center;gap:10px;color:rgba(255,255,255,.75);text-decoration:none;font-size:15px;font-weight:400;padding:9px 6px;margin-bottom:2px;';
+  ?>
+  <a href="<?= $link['href'] ?>" style="<?= $style ?>"
+     onmouseover="this.style.color='#fff'" onmouseout="this.style.color='<?= $isActive ? '#fff' : 'rgba(255,255,255,.75)' ?>'">
+    <svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" style="flex-shrink:0;opacity:<?= $isActive ? '1' : '.8' ?>;"><?= $link['icon'] ?></svg>
+    <?= $link['label'] ?>
+  </a>
+  <?php endforeach; ?>
+
+  <button onclick="window.location.href='customer-profile.php?logout=1'"
+          style="margin-top:22px;background:#fff;color:#1a3a6b;border:none;border-radius:50px;padding:11px 0;font-size:15px;font-weight:700;font-family:'Playfair Display',serif;cursor:pointer;width:100%;text-align:center;flex-shrink:0;">
+    Log out
+  </button>
+
+  <div style="margin-top:16px;padding-top:14px;border-top:1px solid rgba(255,255,255,.15);display:flex;flex-direction:column;gap:10px;align-items:center;flex-shrink:0;">
+    <div style="display:flex;align-items:center;gap:6px;">
+      <a href="#" style="width:27px;height:27px;border-radius:50%;border:1.5px solid rgba(255,255,255,.45);display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.8);font-size:11px;font-weight:700;text-decoration:none;">in</a>
+      <a href="#" style="width:27px;height:27px;border-radius:50%;border:1.5px solid rgba(255,255,255,.45);display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.8);font-size:11px;font-weight:700;text-decoration:none;">&#120143;</a>
+      <a href="#" style="width:27px;height:27px;border-radius:50%;border:1.5px solid rgba(255,255,255,.45);display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.8);font-size:11px;font-weight:700;text-decoration:none;">&#9834;</a>
+      <img src="../../images/Replate-white.png" alt="RePlate" style="height:20px;object-fit:contain;opacity:0.75;margin-left:4px;"/>
     </div>
-    <div class="sidebar-footer-email">
-      <svg width="13" height="13" fill="none" stroke="rgba(255,255,255,0.7)" stroke-width="2" viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M2 7l10 7 10-7"/></svg>
+    <div style="display:flex;align-items:center;gap:5px;color:rgba(255,255,255,.7);font-size:10px;">
+      <svg width="12" height="12" fill="none" stroke="rgba(255,255,255,0.7)" stroke-width="2" viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M2 7l10 7 10-7"/></svg>
       <span>Replate@gmail.com</span>
     </div>
-    <div class="sidebar-footer-copy">
+    <div style="color:rgba(255,255,255,.5);font-size:10px;display:flex;align-items:center;gap:5px;">
       <span>© 2026</span>
-      <img src="../../images/Replate-white.png" alt="" style="height:14px;object-fit:contain;opacity:0.5;"/>
+      <img src="../../images/Replate-white.png" alt="" style="height:12px;object-fit:contain;opacity:0.5;"/>
       <span>All rights reserved.</span>
     </div>
   </div>
+
 </aside>
 <?php }
 
