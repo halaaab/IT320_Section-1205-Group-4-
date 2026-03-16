@@ -843,7 +843,7 @@ if ($isLoggedIn) {
   <nav>
     <div class="nav-left">
       <img class="nav-logo" src="../../images/Replate-white.png" alt="RePlate Logo" />
-      <a href="../customer/cart.php" class="nav-cart">
+      <a href="CART_LINK_HERE" class="nav-cart">
         <img src="../../images/Shopping cart.png" alt="Cart" style="width:40px;height:40px;object-fit:contain;" />
       </a>
     </div>
@@ -985,7 +985,7 @@ if ($isLoggedIn) {
               </div>
             </div>
             <p class="product-desc"><?= $itemDesc ?></p>
-            <button class="btn-view" onclick="window.location.href='../customer/item-details.php?id=<?= $itemId ?>'">View item</button>
+            <button class="btn-view" onclick="window.location.href='../customer/item-details.php?itemId=<?= $itemId ?>'">View item</button>
           </div>
         </div>
         <?php endforeach; ?>
@@ -1010,51 +1010,33 @@ if ($isLoggedIn) {
     <h2 class="section-title"><span class="gradient">Categories</span></h2>
     <div class="scroll-wrapper">
       <div class="scroll-row" id="categories-row">
-        <div class="category-card">
+        <?php
+        $catImageMap = [
+            'bakery'    => '../../images/bakary.png',
+            'groceries' => '../../images/grocery.png',
+            'grocery'   => '../../images/grocery.png',
+            'meals'     => '../../images/meals.png',
+            'meal'      => '../../images/meals.png',
+            'dairy'     => '../../images/diary.png',
+            'sweets'    => '../../images/sweets.png',
+            'sweet'     => '../../images/sweets.png',
+        ];
+        foreach ($categories as $cat):
+            $catId   = (string)$cat['_id'];
+            $catName = htmlspecialchars($cat['name'] ?? '');
+            $catKey  = strtolower(trim($cat['name'] ?? ''));
+            $catImg  = $catImageMap[$catKey] ?? '../../images/bakary.png';
+        ?>
+        <a class="category-card" href="../customer/category.php?categoryId=<?= urlencode($catId) ?>" style="text-decoration:none;">
           <div class="category-img-box">
-            <img src="../../images/bakary.png" alt="Bakery"/>
+            <img src="<?= $catImg ?>" alt="<?= $catName ?>"/>
           </div>
           <div class="category-info">
-            <span class="category-name">Bakery</span>
+            <span class="category-name"><?= $catName ?></span>
             <button class="btn-cat-shop">Shop now</button>
           </div>
-        </div>
-        <div class="category-card">
-          <div class="category-img-box">
-            <img src="../../images/grocery.png" alt="Groceries"/>
-          </div>
-          <div class="category-info">
-            <span class="category-name">Groceries</span>
-            <button class="btn-cat-shop">Shop now</button>
-          </div>
-        </div>
-        <div class="category-card">
-          <div class="category-img-box">
-            <img src="../../images/meals.png" alt="Meals"/>
-          </div>
-          <div class="category-info">
-            <span class="category-name">Meals</span>
-            <button class="btn-cat-shop">Shop now</button>
-          </div>
-        </div>
-        <div class="category-card">
-          <div class="category-img-box">
-            <img src="../../images/diary.png" alt="Dairy"/>
-          </div>
-          <div class="category-info">
-            <span class="category-name">Dairy</span>
-            <button class="btn-cat-shop">Shop now</button>
-          </div>
-        </div>
-        <div class="category-card">
-          <div class="category-img-box">
-            <img src="../../images/sweets.png" alt="Sweets"/>
-          </div>
-          <div class="category-info">
-            <span class="category-name">Sweets</span>
-            <button class="btn-cat-shop">Shop now</button>
-          </div>
-        </div>
+        </a>
+        <?php endforeach; ?>
 
       </div>
     </div>
@@ -1073,8 +1055,9 @@ if ($isLoggedIn) {
         <?php foreach ($providers as $provider):
           $bizName  = htmlspecialchars($provider['businessName'] ?? 'Provider');
           $category = htmlspecialchars($provider['category'] ?? '');
+          $provId   = (string)($provider['_id'] ?? '');
         ?>
-        <div class="provider-card">
+        <a class="provider-card" href="../customer/providers-page.php?providerId=<?= urlencode($provId) ?>" style="text-decoration:none;">
           <div class="provider-logo-big">
             <?php if (!empty($provider['businessLogo'])): ?>
               <img src="<?= htmlspecialchars($provider['businessLogo']) ?>" alt="<?= $bizName ?>"/>
@@ -1084,7 +1067,7 @@ if ($isLoggedIn) {
           </div>
           <span class="provider-logo-name" style="font-size:15px;font-weight:700;color:#1a3a6b;text-align:center;"><?= $bizName ?></span>
           <span class="provider-type-label"><?= $category ?></span>
-        </div>
+        </a>
         <?php endforeach; ?>
       </div>
     </div>
