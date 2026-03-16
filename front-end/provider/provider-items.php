@@ -554,11 +554,11 @@ border-radius:18px;
       <p class="sidebar-welcome">Welcome Back ,</p>
       <p class="sidebar-name"><?= htmlspecialchars($firstName) ?></p>
       <nav class="sidebar-nav">
-        <a href="provider-dashboard.php" class="sidebar-link active">
+        <a href="provider-dashboard.php" class="sidebar-link ">
           <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
           DashBoard
         </a>
-        <a href="provider-items.php" class="sidebar-link">
+        <a href="provider-items.php" class="sidebar-link active">
           <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M20 7H4a2 2 0 00-2 2v10a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2z"/><path d="M16 3H8a2 2 0 00-2 2v2h12V5a2 2 0 00-2-2z"/></svg>
           Items
         </a>
