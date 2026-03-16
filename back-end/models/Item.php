@@ -44,11 +44,14 @@ class Item extends BaseModel {
         ]);
     }
 
-    // ── Get available items only ──
-    public function getAvailable(array $filter = []): array {
-        $filter['isAvailable'] = true;
-        return $this->findAll($filter);
-    }
+public function getAvailable(array $filter = []): array {
+    $options = [];
+    if (isset($filter['sort']))  { $options['sort']  = $filter['sort'];  unset($filter['sort']); }
+    if (isset($filter['limit'])) { $options['limit'] = $filter['limit']; unset($filter['limit']); }
+
+    $filter['isAvailable'] = true;
+    return $this->findAll($filter, $options);
+}
 
     // ── Get items expiring soon (within $hours hours) ──
     public function getExpiringSoon(int $hours = 24): array {

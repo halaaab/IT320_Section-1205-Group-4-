@@ -969,12 +969,24 @@ if ($isLoggedIn) {
         <div class="product-card">
           <div class="product-card-top">
             <div class="provider-logo-box">
-              <div class="provider-logo-img"></div>
+           <div class="provider-logo-img" style="overflow:hidden;border-radius:50%;display:flex;align-items:center;justify-content:center;">
+  <?php if (!empty($prov['businessLogo'])): ?>
+    <img src="<?= htmlspecialchars($prov['businessLogo']) ?>" style="width:100%;height:100%;object-fit:cover;" />
+  <?php else: ?>
+    <span style="font-size:13px;font-weight:700;color:#2255a4;"><?= mb_strtoupper(mb_substr($providerName, 0, 1)) ?></span>
+  <?php endif; ?>
+</div>
               <span class="provider-logo-name"><?= $providerName ?></span>
             </div>
             <button class="heart-btn"><svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path class="heart-path" d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg></button>
           </div>
-          <div class="product-img-box"></div>
+         <div class="product-img-box" style="overflow:hidden;">
+  <?php if (!empty($item['photoUrl'])): ?>
+    <img src="<?= htmlspecialchars($item['photoUrl']) ?>" style="width:100%;height:100%;object-fit:cover;border-radius:14px;" />
+  <?php else: ?>
+    <div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:#8aa3c0;font-size:13px;">No image</div>
+  <?php endif; ?>
+</div>
           <div class="product-divider"></div>
           <div class="product-bottom">
             <div class="product-name-row">

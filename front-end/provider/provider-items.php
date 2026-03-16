@@ -577,10 +577,10 @@ border-radius:18px;
           <a href="#" class="sidebar-social-icon">in</a>
           <a href="#" class="sidebar-social-icon">&#120143;</a>
           <a href="#" class="sidebar-social-icon">&#9834;</a>
-          
+         
         </div>
         <div class="sidebar-footer-copy">
-          <span>© 2026</span>
+          <span>©️ 2026</span>
           <img src="../../images/Replate-white.png" alt="" style="height:40px;object-fit:contain;opacity:0.45;"/>
           <span>All rights reserved.</span>
         </div>
