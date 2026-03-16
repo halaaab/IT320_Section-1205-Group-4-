@@ -11,6 +11,7 @@ require_once '../../back-end/models/Order.php';
 require_once '../../back-end/models/OrderItem.php';
 require_once '../../back-end/models/SupportTicket.php';
 require_once '../../back-end/models/Notification.php';
+require_once '../../back-end/models/Favourite.php';
 
 if (empty($_SESSION['customerId'])) {
     header('Location: ../shared/login.php');
@@ -20,6 +21,36 @@ if (empty($_SESSION['customerId'])) {
 $customerId = $_SESSION['customerId'];
 $customer   = (new Customer())->findById($customerId);
 $firstName  = explode(' ', trim($customer['fullName'] ?? ($_SESSION['userName'] ?? 'Customer')))[0] ?: 'Customer';
+
+// ── Fetch expiry alerts: items in cart OR favourites expiring within 48h ──
+$expiryAlerts = [];
+$now  = time();
+$soon = $now + 48 * 3600;
+
+$cartModel   = new Cart();
+$cart        = $cartModel->getOrCreate($customerId);
+$cartItemIds = array_map(fn($ci) => (string)$ci['itemId'], (array)($cart['cartItems'] ?? []));
+
+$favModel   = new Favourite();
+$favs       = $favModel->getByCustomer($customerId);
+$favItemIds = array_map(fn($f) => (string)$f['itemId'], $favs);
+
+$watchedIds = array_unique(array_merge($cartItemIds, $favItemIds));
+$itemModel  = new Item();
+
+foreach ($watchedIds as $itemId) {
+    try {
+        $item = $itemModel->findById($itemId);
+        if (!$item || !isset($item['expiryDate'])) continue;
+        $expiry = $item['expiryDate']->toDateTime()->getTimestamp();
+        if ($expiry >= $now && $expiry <= $soon) {
+            $hoursLeft = ceil(($expiry - $now) / 3600);
+            $source    = in_array($itemId, $cartItemIds) ? 'cart' : 'favourites';
+            $expiryAlerts[] = ['id'=>$itemId,'name'=>$item['itemName']??'Item','hoursLeft'=>$hoursLeft,'source'=>$source];
+        }
+    } catch (Throwable) { continue; }
+}
+$alertCount = count($expiryAlerts);
 
 function rp_h($v){ return htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8'); }
 function rp_dt($dt, $fmt='j F Y  g:ia'){
@@ -90,11 +121,22 @@ $tickets = $ticketModel->getByCustomer($customerId);
     .nav-bell-wrap { position: relative; }
     .nav-bell { width: 38px; height: 38px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.6); display: flex; align-items: center; justify-content: center; cursor: pointer; background: none; transition: background 0.2s; }
     .nav-bell:hover { background: rgba(255,255,255,0.15); }
+    .bell-badge { position: absolute; top: -3px; right: -3px; width: 18px; height: 18px; background: #e07a1a; border-radius: 50%; border: 2px solid transparent; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; color: #fff; pointer-events: none; }
     .notif-dropdown { display: none; position: absolute; top: 48px; right: 0; width: 320px; background: #fff; border-radius: 16px; box-shadow: 0 8px 40px rgba(26,58,107,0.18); border: 1.5px solid #e0eaf5; z-index: 9999; overflow: hidden; }
     .notif-dropdown.open { display: block; }
     .notif-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 18px 12px; border-bottom: 1.5px solid #f0f5fc; }
     .notif-header-title { font-size: 15px; font-weight: 700; color: #1a3a6b; }
     .notif-empty { padding: 28px 18px; text-align: center; color: #b0c4d8; font-size: 14px; }
+    .notif-item { display: flex; align-items: flex-start; gap: 12px; padding: 14px 18px; border-bottom: 1px solid #f5f8fc; transition: background 0.15s; }
+    .notif-item:last-child { border-bottom: none; }
+    .notif-item:hover { background: #f8fbff; }
+    .notif-icon { width: 36px; height: 36px; border-radius: 50%; background: #fff4e6; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 2px; }
+    .notif-text { flex: 1; }
+    .notif-name { font-size: 14px; font-weight: 700; color: #1a3a6b; margin-bottom: 3px; }
+    .notif-meta { font-size: 12px; color: #7a8fa8; display: flex; align-items: center; gap: 6px; }
+    .notif-source-tag { background: #e8f0ff; color: #2255a4; border-radius: 50px; padding: 2px 8px; font-size: 11px; font-weight: 700; }
+    .notif-source-tag.cart { background: #e8f7ee; color: #1a6b3a; }
+    .notif-hours { color: #e07a1a; font-weight: 700; }
 
     /* PAGE BODY */
     .page-body { display: flex; flex: 1; }
@@ -177,12 +219,37 @@ $tickets = $ticketModel->getByCustomer($customerId);
       <button class="nav-bell" onclick="toggleNotifDropdown()">
         <svg width="18" height="18" fill="none" stroke="#fff" stroke-width="1.8" viewBox="0 0 24 24"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
       </button>
+      <?php if ($alertCount > 0): ?>
+      <span class="bell-badge"><?= $alertCount ?></span>
+      <?php endif; ?>
       <div class="notif-dropdown" id="notifDropdown">
         <div class="notif-header">
-          <span class="notif-header-title">Notifications</span>
-          <span style="font-size:12px;color:#b0c4d8;">0 alerts</span>
+          <span class="notif-header-title">⏰ Expiring Soon</span>
+          <span style="font-size:12px;color:#b0c4d8;"><?= $alertCount ?> alert<?= $alertCount !== 1 ? 's' : '' ?></span>
         </div>
-        <div class="notif-empty">No notifications right now</div>
+        <?php if (empty($expiryAlerts)): ?>
+        <div class="notif-empty">
+          <svg width="32" height="32" fill="none" stroke="#c8d8ee" stroke-width="1.5" viewBox="0 0 24 24" style="margin:0 auto 8px;display:block;"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+          No expiry alerts right now
+        </div>
+        <?php else: ?>
+        <?php foreach ($expiryAlerts as $alert): ?>
+        <div class="notif-item">
+          <div class="notif-icon">
+            <svg width="16" height="16" fill="none" stroke="#e07a1a" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          </div>
+          <div class="notif-text">
+            <p class="notif-name"><?= rp_h($alert['name']) ?></p>
+            <div class="notif-meta">
+              <span class="notif-hours">⏳ <?= $alert['hoursLeft'] ?>h left</span>
+              <span class="notif-source-tag <?= $alert['source']==='cart'?'cart':'' ?>">
+                <?= $alert['source']==='cart' ? '🛒 Cart' : '♥ Favourites' ?>
+              </span>
+            </div>
+          </div>
+        </div>
+        <?php endforeach; ?>
+        <?php endif; ?>
       </div>
     </div>
     <a href="customer-profile.php" class="nav-avatar">
