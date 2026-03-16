@@ -24,9 +24,22 @@ $firstName = explode(' ', trim($customer['fullName'] ?? ($_SESSION['userName'] ?
 function rp_h($v){ return htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8'); }
 function rp_oid($v){ return is_object($v) ? (string)$v : (string)$v; }
 function rp_dt($dt, $fmt='j F Y  g:ia'){
-    if ($dt instanceof MongoDB\BSON\UTCDateTime) return $dt->toDateTime()->format($fmt);
-    if (is_numeric($dt)) return date($fmt, (int)$dt);
-    if ($dt) return date($fmt, strtotime((string)$dt));
+    $tz = new DateTimeZone('Asia/Riyadh');
+    if ($dt instanceof MongoDB\BSON\UTCDateTime) {
+        $d = $dt->toDateTime();
+        $d->setTimezone($tz);
+        return $d->format($fmt);
+    }
+    if (is_numeric($dt)) {
+        $d = new DateTime('@' . (int)$dt);
+        $d->setTimezone($tz);
+        return $d->format($fmt);
+    }
+    if ($dt) {
+        $d = new DateTime((string)$dt);
+        $d->setTimezone($tz);
+        return $d->format($fmt);
+    }
     return '';
 }
 function rp_money($n){ return number_format((float)$n, 2); }
@@ -195,11 +208,11 @@ nav{display:flex;align-items:center;justify-content:space-between;padding:0 48px
 
 /* ── SIDEBAR ── */
 .page-body{display:flex;flex:1;min-height:calc(100vh - 72px)}
-.sidebar{width:240px;min-height:calc(100vh - 72px);background:#2255a4;display:flex;flex-direction:column;padding:36px 24px 28px;flex-shrink:0}
-.sidebar-welcome{color:rgba(255,255,255,.75);font-size:18px;font-weight:400;margin-bottom:4px}
-.sidebar-name{color:rgba(255,255,255,.55);font-size:42px;font-weight:700;line-height:1.1;margin-bottom:36px}
-.sidebar-nav{display:flex;flex-direction:column;gap:16px;flex:1;background:transparent}
-.sidebar-link{display:flex;align-items:center;gap:10px;color:rgba(255,255,255,.75);text-decoration:none;font-size:16px;font-weight:400;padding:10px 8px;border-radius:0;transition:color .2s;background:none !important}
+.sidebar{width:240px;min-height:calc(100vh - 72px);background:#2255a4;display:flex;flex-direction:column;padding:28px 24px 24px;flex-shrink:0}
+.sidebar-welcome{color:rgba(255,255,255,.75);font-size:16px;font-weight:400;margin-bottom:2px}
+.sidebar-name{color:rgba(255,255,255,.55);font-size:36px;font-weight:700;line-height:1.1;margin-bottom:20px}
+.sidebar-nav{display:flex;flex-direction:column;gap:2px;flex:1;background:transparent}
+.sidebar-link{display:flex;align-items:center;gap:10px;color:rgba(255,255,255,.75);text-decoration:none;font-size:16px;font-weight:400;padding:8px 8px;border-radius:0;transition:color .2s;background:none !important}
 .sidebar-link:hover{color:#fff;background:none !important}
 .sidebar-link.active{color:#fff !important;font-weight:700;border-bottom:2px solid rgba(255,255,255,.5);background:none !important;padding-bottom:6px}
 .sidebar-link svg{flex-shrink:0;opacity:.8}
