@@ -843,7 +843,7 @@ if ($isLoggedIn) {
   <nav>
     <div class="nav-left">
       <img class="nav-logo" src="../../images/Replate-white.png" alt="RePlate Logo" />
-      <a href="CART_LINK_HERE" class="nav-cart">
+      <a href="../customer/cart.php" class="nav-cart">
         <img src="../../images/Shopping cart.png" alt="Cart" style="width:40px;height:40px;object-fit:contain;" />
       </a>
     </div>

@@ -3,7 +3,7 @@
         'name' => 'replate/backend',
         'pretty_version' => 'dev-main',
         'version' => 'dev-main',
-        'reference' => 'ac4577faea26565c3e5181f6cf360b5bb10d8dd5',
+        'reference' => '72c467c6bc47cd5a1e16deadb1b7aa38581df545',
         'type' => 'library',
         'install_path' => __DIR__ . '/../../',
         'aliases' => array(),
@@ -37,7 +37,7 @@
         'replate/backend' => array(
             'pretty_version' => 'dev-main',
             'version' => 'dev-main',
-            'reference' => 'ac4577faea26565c3e5181f6cf360b5bb10d8dd5',
+            'reference' => '72c467c6bc47cd5a1e16deadb1b7aa38581df545',
             'type' => 'library',
             'install_path' => __DIR__ . '/../../',
             'aliases' => array(),
