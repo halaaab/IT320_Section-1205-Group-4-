@@ -208,23 +208,92 @@ nav{display:flex;align-items:center;justify-content:space-between;padding:0 48px
 
 /* ── SIDEBAR ── */
 .page-body{display:flex;flex:1;min-height:calc(100vh - 72px)}
-.sidebar{width:240px;min-height:calc(100vh - 72px);background:#2255a4;display:flex;flex-direction:column;padding:28px 24px 24px;flex-shrink:0}
-.sidebar-welcome{color:rgba(255,255,255,.75);font-size:16px;font-weight:400;margin:0 0 2px 0}
-.sidebar-name{color:rgba(255,255,255,.55);font-size:36px;font-weight:700;line-height:1.1;margin:0 0 20px 0}
-.sidebar-nav{display:flex;flex-direction:column;gap:6px;background:transparent}
-.sidebar-link{display:flex;align-items:center;gap:10px;color:rgba(255,255,255,.75);text-decoration:none;font-size:16px;font-weight:400;padding:10px 8px;border-radius:0;transition:color .2s;background:none !important}
+.sidebar{
+  width:240px;
+  min-height:calc(100vh - 72px);
+  background:#2255a4;
+  display:flex;
+  flex-direction:column;
+  padding:28px 20px 20px;
+  flex-shrink:0;
+  overflow:visible;
+}
+.sidebar-welcome{
+  color:rgba(255,255,255,.75);
+  font-size:15px;
+  font-weight:400;
+  margin:0 0 0 0;
+  padding:0;
+  line-height:1.4;
+}
+.sidebar-name{
+  color:rgba(255,255,255,.55);
+  font-size:32px;
+  font-weight:700;
+  line-height:1.1;
+  margin:0 0 18px 0;
+  padding:0;
+}
+.sidebar-nav{
+  display:flex;
+  flex-direction:column;
+  gap:0;
+}
+.sidebar-link{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  color:rgba(255,255,255,.75);
+  text-decoration:none;
+  font-size:15px;
+  font-weight:400;
+  padding:9px 6px;
+  transition:color .2s;
+  background:none !important;
+  white-space:nowrap;
+}
 .sidebar-link:hover{color:#fff;background:none !important}
-.sidebar-link.active{color:#fff !important;font-weight:700;border-bottom:2px solid rgba(255,255,255,.5);background:none !important;padding-bottom:6px}
+.sidebar-link.active{
+  color:#fff !important;
+  font-weight:700;
+  border-bottom:2px solid rgba(255,255,255,.5);
+  background:none !important;
+  padding-bottom:5px;
+}
 .sidebar-link svg{flex-shrink:0;opacity:.8}
 .sidebar-link.active svg{opacity:1}
-.sidebar-logout{margin-top:28px;background:#fff;color:#1a3a6b;border:none;border-radius:50px;padding:12px 0;font-size:16px;font-weight:700;font-family:'Playfair Display',serif;cursor:pointer;width:100%;transition:background .2s;text-align:center}
+.sidebar-logout{
+  margin-top:20px;
+  background:#fff;
+  color:#1a3a6b;
+  border:none;
+  border-radius:50px;
+  padding:11px 0;
+  font-size:15px;
+  font-weight:700;
+  font-family:'Playfair Display',serif;
+  cursor:pointer;
+  width:100%;
+  transition:background .2s;
+  text-align:center;
+  flex-shrink:0;
+}
 .sidebar-logout:hover{background:#e8f0ff}
-.sidebar-footer{margin-top:24px;padding-top:18px;border-top:1px solid rgba(255,255,255,.15);display:flex;flex-direction:column;gap:12px;align-items:center}
-.sidebar-footer-social{display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap}
-.sidebar-social-icon{width:30px;height:30px;border-radius:50%;border:1.5px solid rgba(255,255,255,.45);display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.8);font-size:12px;font-weight:700;text-decoration:none;transition:background .2s;flex-shrink:0}
+.sidebar-footer{
+  margin-top:16px;
+  padding-top:14px;
+  border-top:1px solid rgba(255,255,255,.15);
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+  align-items:center;
+  flex-shrink:0;
+}
+.sidebar-footer-social{display:flex;align-items:center;justify-content:center;gap:6px;flex-wrap:wrap}
+.sidebar-social-icon{width:28px;height:28px;border-radius:50%;border:1.5px solid rgba(255,255,255,.45);display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.8);font-size:11px;font-weight:700;text-decoration:none;transition:background .2s;flex-shrink:0}
 .sidebar-social-icon:hover{background:rgba(255,255,255,.15);color:#fff}
-.sidebar-footer-email{display:flex;align-items:center;justify-content:center;gap:6px;color:rgba(255,255,255,.7);font-size:11px}
-.sidebar-footer-copy{color:rgba(255,255,255,.5);font-size:11px;display:flex;align-items:center;justify-content:center;gap:6px;flex-wrap:wrap}
+.sidebar-footer-email{display:flex;align-items:center;justify-content:center;gap:5px;color:rgba(255,255,255,.7);font-size:10px}
+.sidebar-footer-copy{color:rgba(255,255,255,.5);font-size:10px;display:flex;align-items:center;justify-content:center;gap:5px;flex-wrap:wrap}
 
 /* ── MAIN CONTENT ── */
 .main-content{flex:1;padding:32px 48px 60px}
@@ -272,7 +341,12 @@ footer{background:linear-gradient(90deg,#1a3a6b 0%,#2255a4 60%,#3a7bd5 100%);pad
 
 @media(max-width:900px){
   .page-body{flex-direction:column}
-  .sidebar{width:100%;min-height:auto}
+  .sidebar{width:100%;min-height:auto;padding:20px 20px 16px}
+  .sidebar-name{font-size:26px;margin-bottom:12px}
+  .sidebar-nav{flex-direction:row;flex-wrap:wrap;gap:4px}
+  .sidebar-link{padding:7px 10px;font-size:14px;white-space:nowrap}
+  .sidebar-logout{margin-top:12px;padding:9px 0;font-size:14px}
+  .sidebar-footer{margin-top:12px;padding-top:10px}
   .main-content{padding:24px 20px 40px}
   nav{padding:0 18px}
   .nav-center{display:none}
