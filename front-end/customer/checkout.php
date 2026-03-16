@@ -1,5 +1,6 @@
 <?php
 session_start();
+
 require_once '../../back-end/config/database.php';
 require_once '../../back-end/models/BaseModel.php';
 require_once '../../back-end/models/Cart.php';
@@ -15,104 +16,176 @@ if (empty($_SESSION['customerId'])) {
     exit;
 }
 
-function e($value): string { return htmlspecialchars((string)$value, ENT_QUOTES, 'UTF-8'); }
-function money($amount): string { return number_format((float)$amount, 2) . ' SAR'; }
-
 $customerId = $_SESSION['customerId'];
-$customerName = $_SESSION['userName'] ?? 'Customer';
-
-$cartModel = new Cart();
-$itemModel = new Item();
-$providerModel = new Provider();
-$pickupLocationModel = new PickupLocation();
-$orderModel = new Order();
-$orderItemModel = new OrderItem();
-$notificationModel = new Notification();
-
+$cartModel  = new Cart();
 $cart       = $cartModel->getOrCreate($customerId);
 $cartItems  = $cart['cartItems'] ?? [];
-$notifications = $notificationModel->getByCustomer($customerId);
-$unreadCount = $notificationModel->getUnreadCount($customerId);
 
 $error = '';
-$success = '';
-$enriched = [];
 $total = 0.0;
 
-foreach ($cartItems as $ci) {
-    $item = $itemModel->findById((string)$ci['itemId']);
-    if (!$item) { continue; }
+$itemModel           = new Item();
+$providerModel       = new Provider();
+$pickupLocationModel = new PickupLocation();
+$orderModel          = new Order();
+$orderItemModel      = new OrderItem();
+$notificationModel   = new Notification();
 
-    $provider = $providerModel->findById((string)$ci['providerId']);
-    $location = !empty($item['pickupLocationId']) ? $pickupLocationModel->findById((string)$item['pickupLocationId']) : null;
-    $lineTotal = (float)($ci['price'] ?? 0) * (int)($ci['quantity'] ?? 1);
+$enriched = [];
+
+foreach ($cartItems as $ci) {
+    $item = $itemModel->findById((string)($ci['itemId'] ?? ''));
+
+    if (!$item) {
+        continue;
+    }
+
+    $providerId = (string)($ci['providerId'] ?? ($item['providerId'] ?? ''));
+    $provider   = $providerId ? $providerModel->findById($providerId) : null;
+
+    $location = null;
+
+    if (!empty($item['pickupLocationId'])) {
+        $location = $pickupLocationModel->findById((string)$item['pickupLocationId']);
+    }
+
+    if (!$location && $providerId) {
+        $location = $pickupLocationModel->getDefault($providerId);
+    }
+
+    $lineTotal = ((float)($ci['price'] ?? 0)) * ((int)($ci['quantity'] ?? 1));
     $total += $lineTotal;
 
+    $locationStr = '';
+    if ($location) {
+        $parts = array_filter([
+            $location['street'] ?? '',
+            $location['city'] ?? '',
+            $location['zip'] ?? '',
+        ]);
+        $locationStr = implode(', ', $parts);
+    }
+
+    $pickupTimes = [];
+    if (!empty($item['pickupTimes']) && is_array($item['pickupTimes'])) {
+        $pickupTimes = array_values(array_filter($item['pickupTimes']));
+    }
+
     $enriched[] = [
-        'cartItem'      => $ci,
-        'item'          => $item,
-        'provider'      => $provider,
-        'location'      => $location,
-        'locationStr'   => $location ? trim(($location['street'] ?? '') . ', ' . ($location['city'] ?? '')) : 'Pickup location not available',
-        'pickupTimes'   => $item['pickupTimes'] ?? [],
-        'lineTotal'     => $lineTotal,
-        'providerLogo'  => $provider['businessLogo'] ?? '',
-        'providerName'  => $provider['businessName'] ?? 'Provider',
+        'cartItem'    => $ci,
+        'item'        => $item,
+        'provider'    => $provider,
+        'providerId'  => $providerId,
+        'location'    => $location,
+        'locationStr' => $locationStr,
+        'pickupTimes' => $pickupTimes,
+        'lineTotal'   => $lineTotal,
     ];
 }
 
+/*
+|--------------------------------------------------------------------------
+| Group cart items by provider
+|--------------------------------------------------------------------------
+*/
+$groupedByProvider = [];
+
+foreach ($enriched as $entry) {
+    $providerId = $entry['providerId'] ?: 'unknown_provider';
+
+    if (!isset($groupedByProvider[$providerId])) {
+        $mergedPickupTimes = $entry['pickupTimes'];
+
+        $groupedByProvider[$providerId] = [
+            'providerId'    => $providerId,
+            'provider'      => $entry['provider'],
+            'location'      => $entry['location'],
+            'locationStr'   => $entry['locationStr'],
+            'items'         => [],
+            'pickupTimes'   => $mergedPickupTimes,
+            'groupSubtotal' => 0.0,
+        ];
+    } else {
+        $groupedByProvider[$providerId]['pickupTimes'] = array_values(array_unique(array_merge(
+            $groupedByProvider[$providerId]['pickupTimes'],
+            $entry['pickupTimes']
+        )));
+    }
+
+    $groupedByProvider[$providerId]['items'][] = $entry;
+    $groupedByProvider[$providerId]['groupSubtotal'] += $entry['lineTotal'];
+}
+
+/*
+|--------------------------------------------------------------------------
+| Handle POST: Place order
+|--------------------------------------------------------------------------
+| selectedPickupTime is now per provider:
+| selectedPickupTime[providerId] = "4:00 PM - 6:00 PM"
+*/
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (empty($enriched)) {
         $error = 'Your cart is empty.';
     } else {
-        $pickupSelections = $_POST['pickupTime'] ?? [];
+        $selectedPickupTimes = $_POST['selectedPickupTime'] ?? [];
         $orderItems = [];
 
-        foreach ($enriched as $row) {
-            $ci   = $row['cartItem'];
-            $item = $row['item'];
+        foreach ($groupedByProvider as $providerId => $group) {
+            $providerSelectedTime = trim($selectedPickupTimes[$providerId] ?? '');
 
-            if (!$item || !($item['isAvailable'] ?? false)) {
-                $error = 'One of the selected items is no longer available.';
-                break;
+            foreach ($group['items'] as $entry) {
+                $ci   = $entry['cartItem'];
+                $item = $itemModel->findById((string)($ci['itemId'] ?? ''));
+
+                if (!$item) {
+                    $error = 'One of the items in your cart no longer exists.';
+                    break 2;
+                }
+
+                if (empty($item['isAvailable'])) {
+                    $error = 'Item "' . ($ci['itemName'] ?? 'Unknown Item') . '" is no longer available.';
+                    break 2;
+                }
+
+                $requestedQty = (int)($ci['quantity'] ?? 1);
+                $availableQty = (int)($item['quantity'] ?? 0);
+
+                if ($availableQty < $requestedQty) {
+                    $error = 'Not enough stock for "' . ($ci['itemName'] ?? 'Unknown Item') . '".';
+                    break 2;
+                }
+
+                $fallbackPickupTime = $entry['pickupTimes'][0] ?? 'Anytime';
+
+                $orderItems[] = [
+                    'itemId'             => (string)$ci['itemId'],
+                    'providerId'         => (string)$ci['providerId'],
+                    'itemName'           => $ci['itemName'] ?? '',
+                    'providerName'       => $entry['provider']['businessName'] ?? '',
+                    'photoUrl'           => $item['photoUrl'] ?? '',
+                    'price'              => (float)($ci['price'] ?? 0),
+                    'quantity'           => (int)($ci['quantity'] ?? 1),
+                    'pickupLocation'     => $entry['locationStr'] ?: 'Provider pickup location',
+                    'selectedPickupTime' => $providerSelectedTime ?: $fallbackPickupTime,
+                ];
             }
-
-            $availableQty = (int)($item['quantity'] ?? 0);
-            if ($availableQty < (int)$ci['quantity']) {
-                $error = 'Not enough stock for ' . ($ci['itemName'] ?? 'an item') . '.';
-                break;
-            }
-
-            $itemId = (string)$ci['itemId'];
-            $pickupTime = trim($pickupSelections[$itemId] ?? '');
-            if ($pickupTime === '') {
-                $pickupTime = $row['pickupTimes'][0] ?? '';
-            }
-
-            $orderItems[] = [
-                'itemId'             => $itemId,
-                'providerId'         => (string)$ci['providerId'],
-                'itemName'           => $ci['itemName'] ?? 'Item',
-                'providerName'       => $row['providerName'],
-                'photoUrl'           => $item['photoUrl'] ?? '',
-                'price'              => (float)($ci['price'] ?? 0),
-                'quantity'           => (int)($ci['quantity'] ?? 1),
-                'pickupLocation'     => $row['locationStr'],
-                'selectedPickupTime' => $pickupTime,
-            ];
         }
 
-        if ($error === '') {
-            $orderId = $orderModel->create($customerId, ['totalAmount' => $total]);
+        if (!$error) {
+            $orderId = $orderModel->create($customerId, [
+                'totalAmount' => $total,
+            ]);
+
             $orderItemModel->createFromCart($orderId, $orderItems);
 
             foreach ($orderItems as $oi) {
-                $itemModel->decreaseQuantity($oi['itemId'], $oi['quantity']);
+                $itemModel->decreaseQuantity($oi['itemId'], (int)$oi['quantity']);
             }
 
             $cartModel->clear($customerId);
             $notificationModel->notifyOrderPlaced($customerId, $orderId);
-            header('Location: order-details.php?orderId=' . urlencode($orderId) . '&new=1');
+
+            header("Location: order-details.php?orderId={$orderId}&new=1");
             exit;
         }
     }
@@ -121,136 +194,792 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>RePlate - Checkout</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RePlate – Checkout</title>
+
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
   <style>
-    :root{--blue:#1d3e97;--light:#eef3fa;--border:#d7dfeb;--orange:#f58b2d;--muted:#70819d;--ink:#1f2f55}
-    *{box-sizing:border-box} body{margin:0;background:#eef2f7;font-family:'DM Sans',sans-serif;color:var(--ink)}
-    .navbar{background:linear-gradient(90deg,#173b96,#6ca8ea);color:#fff;padding:14px 28px;display:flex;justify-content:space-between;align-items:center}
-    .nav-links{display:flex;gap:18px;font-size:14px}.brand{display:flex;gap:14px;align-items:center;font-weight:700}.brand-badge{width:34px;height:34px;border-radius:10px;background:#fff;color:#173b96;display:grid;place-items:center}
-    .nav-right{display:flex;align-items:center;gap:12px}.search{background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.35);border-radius:999px;padding:9px 14px;color:#fff;min-width:190px}
-    .icon-btn{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;border:1px solid rgba(255,255,255,.45);background:rgba(255,255,255,.12)}
-    .badge{position:relative}.badge span{position:absolute;top:-4px;right:-2px;background:var(--orange);color:#fff;border-radius:999px;font-size:10px;min-width:18px;height:18px;display:grid;place-items:center;padding:0 4px}
-    .container{max-width:1100px;margin:28px auto;padding:0 20px}
-    .title{display:flex;gap:12px;align-items:center;font-family:'Playfair Display',serif;margin-bottom:18px}
-    .title h1{margin:0;font-size:42px;color:var(--blue)} .back{width:34px;height:34px;border-radius:50%;background:#dfe8f6;display:grid;place-items:center;color:var(--blue);text-decoration:none}
-    .layout{display:grid;grid-template-columns:1.25fr .8fr;gap:24px}
-    .card{background:#fff;border:1px solid var(--border);border-radius:18px;box-shadow:0 10px 24px rgba(24,54,110,.08)}
-    .order-card{display:grid;grid-template-columns:1.2fr .9fr;gap:16px;padding:18px;margin-bottom:18px}
-    .shop-head{display:flex;align-items:center;gap:12px;margin-bottom:14px}
-    .shop-logo{width:84px;height:84px;border-radius:16px;object-fit:cover;border:1px solid var(--border);padding:10px;background:#fff}
-    .shop-name{font-family:'Playfair Display',serif;color:#d54f3f;font-size:26px}
-    .row{display:flex;justify-content:space-between;gap:14px;padding:8px 0;font-size:14px;border-bottom:1px solid #eef2f7}
-    .row:last-child{border-bottom:none}
-    .label{color:var(--blue);font-weight:700}.value{color:#55657f;text-align:right}
-    .mini-map{border:1px solid var(--border);border-radius:16px;padding:12px;background:#fbfcfe}
-    .map-box{height:160px;border-radius:14px;background:linear-gradient(135deg,#bfd3ec,#e3effa);display:grid;place-items:center;color:var(--blue);font-weight:700;margin-bottom:10px;text-align:center;padding:12px}
-    select{width:100%;padding:11px 12px;border:1px solid var(--border);border-radius:12px;background:#fff;font:inherit}
-    .summary{padding:22px;position:sticky;top:18px}
-    .summary h3{margin:0 0 14px;font-family:'Playfair Display',serif;font-size:28px;color:var(--blue)}
-    .summary-line{display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid #edf1f6;color:#5d6c87}.summary-line.total{border:none;font-size:22px;font-weight:700;color:var(--blue);padding-top:16px}
-    .primary-btn{width:100%;border:none;border-radius:14px;background:var(--blue);color:#fff;padding:15px 18px;font-size:18px;font-weight:700;cursor:pointer;margin-top:16px}
-    .empty,.message{padding:18px;border-radius:14px;margin-bottom:16px}.empty{background:#fff6e9;border:1px solid #f4d0a0;color:#8a5a12}.message.error{background:#fff1f0;border:1px solid #efb1ab;color:#b23a2c}
-    .footer{margin-top:38px;background:linear-gradient(90deg,#2446ab,#6da9e9);color:#fff;text-align:center;padding:20px;font-size:13px}
-    @media (max-width:900px){.layout,.order-card{grid-template-columns:1fr}.nav-links{display:none}}
+    :root {
+      --blue: #051e6b;
+      --orange: #f67b1c;
+      --cream: #fffaf5;
+      --text: #12223b;
+      --muted: #6e7583;
+      --line: #e6e8ee;
+      --white: #ffffff;
+      --card-shadow: 0 12px 32px rgba(5, 30, 107, 0.08);
+      --radius-xl: 28px;
+      --radius-lg: 22px;
+      --radius-md: 16px;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html, body {
+      min-height: 100%;
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      color: var(--text);
+      background: #f7f8fc;
+    }
+
+    a {
+      text-decoration: none;
+      color: inherit;
+    }
+
+    img {
+      max-width: 100%;
+      display: block;
+    }
+
+    .site-header {
+      background: var(--white);
+      border-bottom: 1px solid var(--line);
+      position: sticky;
+      top: 0;
+      z-index: 50;
+    }
+
+    .site-header .inner {
+      width: min(1200px, calc(100% - 32px));
+      margin: 0 auto;
+      min-height: 84px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand img {
+      height: 42px;
+      object-fit: contain;
+    }
+
+    .brand span {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.6rem;
+      font-weight: 700;
+      color: var(--blue);
+    }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 22px;
+      flex-wrap: wrap;
+    }
+
+    .nav-links a {
+      color: var(--blue);
+      font-weight: 600;
+      font-size: 0.98rem;
+    }
+
+    .nav-links a.active {
+      color: var(--orange);
+    }
+
+    .page-shell {
+      width: min(1200px, calc(100% - 32px));
+      margin: 28px auto 48px;
+    }
+
+    .breadcrumb {
+      margin-bottom: 18px;
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+
+    .page-title-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 24px;
+      flex-wrap: wrap;
+    }
+
+    .page-title-row h1 {
+      font-family: 'Playfair Display', serif;
+      color: var(--blue);
+      font-size: clamp(2rem, 4vw, 2.8rem);
+      line-height: 1.05;
+    }
+
+    .checkout-grid {
+      display: grid;
+      grid-template-columns: 1.55fr 0.85fr;
+      gap: 28px;
+      align-items: start;
+    }
+
+    .main-column {
+      display: flex;
+      flex-direction: column;
+      gap: 22px;
+    }
+
+    .summary-column {
+      position: sticky;
+      top: 110px;
+    }
+
+    .section-card {
+      background: var(--white);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-xl);
+      box-shadow: var(--card-shadow);
+      padding: 24px;
+    }
+
+    .section-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+
+    .section-title h2 {
+      font-family: 'Playfair Display', serif;
+      color: var(--blue);
+      font-size: 1.6rem;
+    }
+
+    .section-title p {
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+
+    .provider-block {
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      overflow: hidden;
+      background: #fcfdff;
+      margin-bottom: 20px;
+    }
+
+    .provider-block:last-child {
+      margin-bottom: 0;
+    }
+
+    .provider-head {
+      padding: 20px 20px 16px;
+      background: linear-gradient(180deg, #f6f9ff 0%, #ffffff 100%);
+      border-bottom: 1px solid var(--line);
+    }
+
+    .provider-head-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 14px;
+      margin-bottom: 10px;
+      flex-wrap: wrap;
+    }
+
+    .provider-name {
+      font-family: 'Playfair Display', serif;
+      color: var(--blue);
+      font-size: 1.45rem;
+      font-weight: 700;
+    }
+
+    .provider-tag {
+      background: rgba(246, 123, 28, 0.12);
+      color: var(--orange);
+      padding: 8px 14px;
+      border-radius: 999px;
+      font-weight: 700;
+      font-size: 0.85rem;
+      white-space: nowrap;
+    }
+
+    .pickup-address {
+      color: var(--muted);
+      font-size: 0.98rem;
+      line-height: 1.6;
+      margin-bottom: 16px;
+    }
+
+    .map-wrap {
+      border-radius: 20px;
+      overflow: hidden;
+      border: 1px solid #d9e0ef;
+      background: #edf3ff;
+      height: 280px;
+      position: relative;
+    }
+
+    .provider-map {
+      width: 100%;
+      height: 100%;
+    }
+
+    .map-caption {
+      margin-top: 10px;
+      color: var(--muted);
+      font-size: 0.88rem;
+    }
+
+    .provider-body {
+      padding: 18px 20px 20px;
+      display: grid;
+      gap: 14px;
+    }
+
+    .provider-items-title {
+      font-weight: 800;
+      color: var(--blue);
+      font-size: 1rem;
+      margin-bottom: 2px;
+    }
+
+    .checkout-item {
+      display: grid;
+      grid-template-columns: 84px 1fr auto;
+      gap: 14px;
+      align-items: center;
+      background: var(--white);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 12px;
+    }
+
+    .checkout-item .item-thumb {
+      width: 84px;
+      height: 84px;
+      border-radius: 16px;
+      overflow: hidden;
+      background: #f2f4f8;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .checkout-item .item-thumb img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .checkout-item .item-info h4 {
+      font-size: 1rem;
+      margin-bottom: 6px;
+      color: var(--text);
+      font-weight: 700;
+    }
+
+    .checkout-item .item-info .meta {
+      color: var(--muted);
+      font-size: 0.92rem;
+      line-height: 1.55;
+    }
+
+    .checkout-item .item-price {
+      text-align: right;
+      min-width: 110px;
+    }
+
+    .checkout-item .item-price .line-total {
+      color: var(--blue);
+      font-weight: 800;
+      font-size: 1rem;
+      margin-bottom: 6px;
+    }
+
+    .checkout-item .item-price .unit {
+      color: var(--muted);
+      font-size: 0.86rem;
+    }
+
+    .pickup-time-box {
+      margin-top: 6px;
+      display: grid;
+      gap: 10px;
+    }
+
+    .pickup-time-box label {
+      color: var(--blue);
+      font-weight: 700;
+      font-size: 0.96rem;
+    }
+
+    .pickup-time-box select {
+      width: 100%;
+      border: 1px solid #d4d9e5;
+      background: #fff;
+      border-radius: 14px;
+      padding: 12px 14px;
+      font: inherit;
+      color: var(--text);
+      outline: none;
+    }
+
+    .pickup-time-box select:focus {
+      border-color: var(--orange);
+      box-shadow: 0 0 0 4px rgba(246, 123, 28, 0.12);
+    }
+
+    .order-summary-card {
+      background: var(--white);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-xl);
+      box-shadow: var(--card-shadow);
+      padding: 24px;
+    }
+
+    .order-summary-card h3 {
+      font-family: 'Playfair Display', serif;
+      color: var(--blue);
+      font-size: 1.55rem;
+      margin-bottom: 18px;
+    }
+
+    .summary-list {
+      display: grid;
+      gap: 14px;
+      margin-bottom: 18px;
+    }
+
+    .summary-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      color: var(--text);
+      font-size: 0.97rem;
+    }
+
+    .summary-row span:last-child {
+      font-weight: 700;
+      color: var(--blue);
+    }
+
+    .summary-total {
+      border-top: 1px dashed #d8dbe4;
+      padding-top: 16px;
+      margin-top: 8px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      font-size: 1.08rem;
+      font-weight: 800;
+      color: var(--blue);
+    }
+
+    .summary-note {
+      margin-top: 14px;
+      color: var(--muted);
+      font-size: 0.9rem;
+      line-height: 1.6;
+    }
+
+    .primary-btn,
+    .secondary-btn {
+      width: 100%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 54px;
+      border-radius: 999px;
+      font-weight: 800;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: transform .18s ease, box-shadow .18s ease, background .18s ease;
+      border: none;
+      margin-top: 18px;
+    }
+
+    .primary-btn {
+      background: var(--orange);
+      color: #fff;
+      box-shadow: 0 16px 30px rgba(246, 123, 28, 0.25);
+    }
+
+    .primary-btn:hover {
+      transform: translateY(-1px);
+    }
+
+    .secondary-btn {
+      background: transparent;
+      border: 2px solid var(--blue);
+      color: var(--blue);
+      margin-top: 12px;
+    }
+
+    .secondary-btn:hover {
+      background: rgba(5, 30, 107, 0.04);
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 48px 22px;
+    }
+
+    .empty-state h2 {
+      font-family: 'Playfair Display', serif;
+      color: var(--blue);
+      font-size: 2rem;
+      margin-bottom: 12px;
+    }
+
+    .empty-state p {
+      color: var(--muted);
+      margin-bottom: 22px;
+      line-height: 1.7;
+    }
+
+    .alert-error {
+      border: 1px solid #f4b7b7;
+      background: #fff3f3;
+      color: #9b1c1c;
+      border-radius: 18px;
+      padding: 16px 18px;
+      margin-bottom: 18px;
+      font-weight: 600;
+      line-height: 1.55;
+    }
+
+    .site-footer {
+      background: var(--blue);
+      color: #fff;
+      margin-top: 48px;
+    }
+
+    .site-footer .inner {
+      width: min(1200px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 24px 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .footer-brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-family: 'Playfair Display', serif;
+      font-weight: 700;
+      font-size: 1.25rem;
+    }
+
+    .footer-brand img {
+      height: 34px;
+      object-fit: contain;
+    }
+
+    .footer-links {
+      display: flex;
+      gap: 18px;
+      flex-wrap: wrap;
+      font-size: 0.95rem;
+      opacity: 0.96;
+    }
+
+    @media (max-width: 992px) {
+      .checkout-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .summary-column {
+        position: static;
+      }
+    }
+
+    @media (max-width: 720px) {
+      .site-header .inner,
+      .site-footer .inner,
+      .page-shell {
+        width: min(100% - 20px, 1200px);
+      }
+
+      .checkout-item {
+        grid-template-columns: 72px 1fr;
+      }
+
+      .checkout-item .item-price {
+        grid-column: 2 / 3;
+        text-align: left;
+        min-width: auto;
+      }
+
+      .provider-head-top {
+        align-items: stretch;
+      }
+
+      .map-wrap {
+        height: 230px;
+      }
+    }
   </style>
 </head>
 <body>
-<header class="navbar">
-  <div class="brand">
-    <div class="brand-badge">R</div>
-    <div>RePlate</div>
+
+<header class="site-header">
+  <div class="inner">
+    <a class="brand" href="../shared/landing.php">
+      <img src="../../images/Replate-logo.png" alt="RePlate">
+      <span>RePlate</span>
+    </a>
+
     <nav class="nav-links">
-      <a href="../shared/landing.php" style="color:#fff;text-decoration:none">Home</a>
-      <a href="category.php" style="color:#fff;text-decoration:none">Categories</a>
-      <a href="providers-list.php" style="color:#fff;text-decoration:none">Providers</a>
-      <a href="cart.php" style="color:#fff;text-decoration:none">Cart</a>
+      <a href="../shared/landing.php">Home</a>
+      <a href="providers-list.php">Providers</a>
+      <a href="cart.php">Cart</a>
+      <a href="checkout.php" class="active">Checkout</a>
+      <a href="orders.php">Orders</a>
+      <a href="customer-profile.php">Profile</a>
     </nav>
-  </div>
-  <div class="nav-right">
-    <input class="search" value="<?= e($customerName) ?>" readonly>
-    <a class="icon-btn badge" href="orders.php">🔔<?php if ($unreadCount > 0): ?><span><?= (int)$unreadCount ?></span><?php endif; ?></a>
-    <a class="icon-btn" href="customer-profile.php">👤</a>
   </div>
 </header>
 
-<main class="container">
-  <div class="title">
-    <a class="back" href="cart.php">‹</a>
-    <h1>Order details</h1>
+<div class="page-shell">
+  <div class="breadcrumb">Home / Cart / <strong>Checkout</strong></div>
+
+  <div class="page-title-row">
+    <h1>Checkout</h1>
   </div>
 
-  <?php if ($error !== ''): ?><div class="message error"><?= e($error) ?></div><?php endif; ?>
+  <?php if ($error): ?>
+    <div class="alert-error"><?= htmlspecialchars($error) ?></div>
+  <?php endif; ?>
 
-  <div class="layout">
-    <section>
-      <?php if (empty($enriched)): ?>
-        <div class="empty">Your cart is empty. Add items before placing an order.</div>
-      <?php else: ?>
-        <form method="post">
-          <?php foreach ($enriched as $row): 
-            $ci = $row['cartItem']; $item = $row['item']; $location = $row['location']; ?>
-            <div class="card order-card">
+  <?php if (empty($enriched)): ?>
+    <div class="section-card empty-state">
+      <h2>Your cart is empty</h2>
+      <p>Add items to your cart first, then come back here to review provider pickup locations and place your order.</p>
+      <a class="primary-btn" href="providers-list.php" style="max-width: 280px; margin: 0 auto;">Browse Providers</a>
+    </div>
+  <?php else: ?>
+    <form method="POST">
+      <div class="checkout-grid">
+        <div class="main-column">
+
+          <div class="section-card">
+            <div class="section-title">
               <div>
-                <div class="shop-head">
-                  <?php if (!empty($row['providerLogo'])): ?>
-                    <img class="shop-logo" src="<?= e($row['providerLogo']) ?>" alt="<?= e($row['providerName']) ?>">
-                  <?php else: ?>
-                    <div class="shop-logo" style="display:grid;place-items:center;color:var(--blue);font-weight:700"><?= e(substr($row['providerName'],0,2)) ?></div>
-                  <?php endif; ?>
-                  <div>
-                    <div class="shop-name"><?= e($row['providerName']) ?></div>
-                    <div style="color:var(--muted);font-size:14px;">Review before placing order</div>
-                  </div>
-                </div>
-
-                <div class="row"><div class="label">Order</div><div class="value"><?= e($ci['itemName'] ?? 'Item') ?></div></div>
-                <div class="row"><div class="label">Quantity</div><div class="value"><?= (int)($ci['quantity'] ?? 1) ?></div></div>
-                <div class="row"><div class="label">Price</div><div class="value"><?= money($ci['price'] ?? 0) ?></div></div>
-                <div class="row"><div class="label">Line total</div><div class="value"><?= money($row['lineTotal']) ?></div></div>
-                <div class="row"><div class="label">Payment method</div><div class="value">Cash</div></div>
-              </div>
-
-              <div class="mini-map">
-                <div class="map-box">
-                  Pickup location<br>
-                  <?= e($location['label'] ?? 'Main Branch') ?>
-                </div>
-                <div style="font-size:13px;color:#5d6c87;margin-bottom:10px;">
-                  <?= e($row['locationStr']) ?><br>
-                  <?php if (!empty($location['coordinates']['lat']) && !empty($location['coordinates']['lng'])): ?>
-                    Lat: <?= e($location['coordinates']['lat']) ?>, Lng: <?= e($location['coordinates']['lng']) ?>
-                  <?php endif; ?>
-                </div>
-                <label style="font-size:13px;font-weight:700;color:var(--blue);display:block;margin-bottom:6px;">Pick up time</label>
-                <select name="pickupTime[<?= e((string)$ci['itemId']) ?>]">
-                  <?php foreach (($row['pickupTimes'] ?: ['Any available time']) as $time): ?>
-                    <option value="<?= e($time) ?>"><?= e($time) ?></option>
-                  <?php endforeach; ?>
-                </select>
+                <h2>Pickup by Provider</h2>
+                <p>Each provider section shows one read-only pickup map using the provider’s saved location.</p>
               </div>
             </div>
-          <?php endforeach; ?>
-          <button class="primary-btn" type="submit">Place order</button>
-        </form>
-      <?php endif; ?>
-    </section>
 
-    <aside class="card summary">
-      <h3>Total Amount</h3>
-      <div class="summary-line"><span>Items</span><strong><?= count($enriched) ?></strong></div>
-      <div class="summary-line"><span>Payment</span><strong>Cash</strong></div>
-      <div class="summary-line"><span>Delivery</span><strong>Pickup</strong></div>
-      <div class="summary-line total"><span>Total</span><span><?= money($total) ?></span></div>
-      <a href="cart.php" style="display:block;margin-top:12px;color:var(--blue);text-align:center;">Back to cart</a>
-    </aside>
+            <?php foreach ($groupedByProvider as $providerId => $group): ?>
+              <?php
+                $provider = $group['provider'];
+                $location = $group['location'];
+
+                $providerName = $provider['businessName'] ?? 'Provider';
+                $providerCategory = $provider['category'] ?? 'Pickup';
+                $mapId = 'providerMap_' . preg_replace('/[^a-zA-Z0-9_]/', '_', $providerId);
+
+                $lat = $location['coordinates']['lat'] ?? null;
+                $lng = $location['coordinates']['lng'] ?? null;
+
+                $times = $group['pickupTimes'];
+                if (empty($times)) {
+                    $times = ['Anytime'];
+                }
+              ?>
+              <section class="provider-block">
+                <div class="provider-head">
+                  <div class="provider-head-top">
+                    <div>
+                      <div class="provider-name"><?= htmlspecialchars($providerName) ?></div>
+                    </div>
+                    <div class="provider-tag"><?= htmlspecialchars($providerCategory) ?></div>
+                  </div>
+
+                  <div class="pickup-address">
+                    <?= htmlspecialchars($group['locationStr'] ?: 'Pickup location available after provider setup.') ?>
+                  </div>
+
+                  <?php if ($lat !== null && $lng !== null): ?>
+                    <div class="map-wrap">
+                      <div id="<?= htmlspecialchars($mapId) ?>" class="provider-map"></div>
+                    </div>
+                    <div class="map-caption">
+                      View-only provider pickup location.
+                    </div>
+                  <?php else: ?>
+                    <div class="map-wrap" style="display:flex; align-items:center; justify-content:center; color:#6e7583; font-weight:600;">
+                      Location coordinates are not available.
+                    </div>
+                  <?php endif; ?>
+                </div>
+
+                <div class="provider-body">
+                  <div class="provider-items-title">Items from <?= htmlspecialchars($providerName) ?></div>
+
+                  <?php foreach ($group['items'] as $entry): ?>
+                    <?php
+                      $ci   = $entry['cartItem'];
+                      $item = $entry['item'];
+                      $thumb = $item['photoUrl'] ?? '';
+                    ?>
+                    <div class="checkout-item">
+                      <div class="item-thumb">
+                        <?php if ($thumb): ?>
+                          <img src="<?= htmlspecialchars($thumb) ?>" alt="<?= htmlspecialchars($ci['itemName'] ?? 'Item') ?>">
+                        <?php else: ?>
+                          <div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:#8b94a7;font-size:.9rem;">No image</div>
+                        <?php endif; ?>
+                      </div>
+
+                      <div class="item-info">
+                        <h4><?= htmlspecialchars($ci['itemName'] ?? 'Item') ?></h4>
+                        <div class="meta">
+                          Quantity: <?= (int)($ci['quantity'] ?? 1) ?><br>
+                          Pickup from: <?= htmlspecialchars($group['locationStr']) ?>
+                        </div>
+                      </div>
+
+                      <div class="item-price">
+                        <div class="line-total"><?= number_format((float)$entry['lineTotal'], 2) ?> SAR</div>
+                        <div class="unit"><?= number_format((float)($ci['price'] ?? 0), 2) ?> SAR each</div>
+                      </div>
+                    </div>
+                  <?php endforeach; ?>
+
+                  <div class="pickup-time-box">
+                    <label for="pickup_<?= htmlspecialchars($providerId) ?>">Select pickup time for <?= htmlspecialchars($providerName) ?></label>
+                    <select
+                      id="pickup_<?= htmlspecialchars($providerId) ?>"
+                      name="selectedPickupTime[<?= htmlspecialchars($providerId) ?>]"
+                      required
+                    >
+                      <?php foreach ($times as $time): ?>
+                        <option value="<?= htmlspecialchars($time) ?>"><?= htmlspecialchars($time) ?></option>
+                      <?php endforeach; ?>
+                    </select>
+                  </div>
+                </div>
+              </section>
+            <?php endforeach; ?>
+          </div>
+        </div>
+
+        <aside class="summary-column">
+          <div class="order-summary-card">
+            <h3>Order Summary</h3>
+
+            <div class="summary-list">
+              <div class="summary-row">
+                <span>Providers</span>
+                <span><?= count($groupedByProvider) ?></span>
+              </div>
+
+              <div class="summary-row">
+                <span>Total Items</span>
+                <span><?= count($enriched) ?></span>
+              </div>
+
+              <?php foreach ($groupedByProvider as $group): ?>
+                <div class="summary-row">
+                  <span><?= htmlspecialchars($group['provider']['businessName'] ?? 'Provider') ?></span>
+                  <span><?= number_format((float)$group['groupSubtotal'], 2) ?> SAR</span>
+                </div>
+              <?php endforeach; ?>
+            </div>
+
+            <div class="summary-total">
+              <span>Total</span>
+              <span><?= number_format($total, 2) ?> SAR</span>
+            </div>
+
+            <div class="summary-note">
+              Pickup locations are provided by each provider and shown here in view-only mode. After placing your order, the selected pickup details will be saved with your order items.
+            </div>
+
+            <button type="submit" class="primary-btn">Place Order</button>
+            <a href="cart.php" class="secondary-btn">Back to Cart</a>
+          </div>
+        </aside>
+      </div>
+    </form>
+  <?php endif; ?>
+</div>
+
+<footer class="site-footer">
+  <div class="inner">
+    <div class="footer-brand">
+      <img src="../../images/Replate-white.png" alt="RePlate">
+      <span>RePlate</span>
+    </div>
+
+    <div class="footer-links">
+      <a href="../shared/landing.php">Home</a>
+      <a href="providers-list.php">Providers</a>
+      <a href="orders.php">Orders</a>
+      <a href="contact.php">Contact</a>
+    </div>
   </div>
-</main>
+</footer>
 
-<footer class="footer">© RePlate • Riyadh • hello@replate.com</footer>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    <?php foreach ($groupedByProvider as $providerId => $group): ?>
+      <?php
+        $location = $group['location'];
+        $lat = $location['coordinates']['lat'] ?? null;
+        $lng = $location['coordinates']['lng'] ?? null;
+        $mapId = 'providerMap_' . preg_replace('/[^a-zA-Z0-9_]/', '_', $providerId);
+      ?>
+      <?php if ($lat !== null && $lng !== null): ?>
+        (function () {
+          const map = L.map('<?= $mapId ?>', {
+            zoomControl: true,
+            dragging: true,
+            scrollWheelZoom: false,
+            doubleClickZoom: false,
+            boxZoom: false,
+            keyboard: false,
+            tap: false,
+            touchZoom: true
+          }).setView([<?= (float)$lat ?>, <?= (float)$lng ?>], 14);
+
+          L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; OpenStreetMap contributors'
+          }).addTo(map);
+
+          L.marker([<?= (float)$lat ?>, <?= (float)$lng ?>]).addTo(map);
+
+          map.dragging.disable();
+          map.scrollWheelZoom.disable();
+          map.doubleClickZoom.disable();
+          map.boxZoom.disable();
+          map.keyboard.disable();
+
+          if (map.tap) map.tap.disable();
+
+          setTimeout(function () {
+            map.invalidateSize();
+          }, 150);
+        })();
+      <?php endif; ?>
+    <?php endforeach; ?>
+  });
+</script>
+
 </body>
 </html>
