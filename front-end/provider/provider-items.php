@@ -27,7 +27,7 @@ $categoryModel = new Category();
 $providerModel = new Provider();
 $locationModel = new PickupLocation();
 
-$categories = $categoryModel->findAll();
+$categories = $categoryModel->getAll();
 
 $itemFilter = [];
 if ($tab === 'sell') {
@@ -862,11 +862,12 @@ pickupTimePicker.value = '';
 });
 
 form.addEventListener('submit', function(e) {
-    if (pickupTimes.length === 0) {
+let valid = true;
+
+if (pickupTimes.length === 0) {
 alert('Please add at least one pickup date and time.');
 valid = false;
 }
-let valid = true;
 
 const itemName = document.getElementById('itemName');
 const itemDetails = document.getElementById('itemDetails');
@@ -898,6 +899,7 @@ if (!valid) {
 e.preventDefault();
 }
 });
+
 </script>
 
 
