@@ -471,10 +471,24 @@ if ($isLoggedIn) {
 
     .product-img-box {
       width: 100%;
-      height: 180px;
+      height: 130px;
       background: #d8e6f5;
       border-radius: 14px;
       margin-bottom: 16px;
+    }
+
+    .category-tag {
+      display: inline-block;
+      background: #e8f0ff;
+      color: #2255a4;
+      font-size: 11px;
+      font-weight: 700;
+      font-family: 'DM Sans', sans-serif;
+      border-radius: 50px;
+      padding: 3px 10px;
+      margin-bottom: 6px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
     }
 
     .product-divider {
@@ -957,14 +971,21 @@ if ($isLoggedIn) {
       <div class="scroll-row" id="prices-row">
         <?php foreach ($items as $item):
           $itemName  = htmlspecialchars($item['itemName'] ?? 'Item');
-          $itemPrice = number_format((float)($item['price'] ?? 0), 2);
+          $itemPrice = ($item['listingType'] ?? '') === 'donate'
+            ? null
+            : number_format((float)($item['price'] ?? 0), 2);
           $itemDesc  = htmlspecialchars($item['description'] ?? '');
           $itemId    = (string)($item['_id'] ?? '');
           // Fetch provider name
           try {
             $prov = (new Provider())->findById((string)($item['providerId'] ?? ''));
             $providerName = htmlspecialchars($prov['businessName'] ?? 'Provider');
-          } catch(Throwable) { $providerName = 'Provider'; }
+          } catch(Throwable) { $providerName = 'Provider'; $prov = []; }
+          // Fetch category name
+          try {
+            $cat = $categoryModel->findById((string)($item['categoryId'] ?? ''));
+            $categoryName = htmlspecialchars($cat['name'] ?? '');
+          } catch(Throwable) { $categoryName = ''; }
         ?>
         <div class="product-card">
           <div class="product-card-top">
@@ -980,6 +1001,9 @@ if ($isLoggedIn) {
             </div>
             <button class="heart-btn"><svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path class="heart-path" d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg></button>
           </div>
+          <?php if ($categoryName): ?>
+          <span class="category-tag"><?= $categoryName ?></span>
+          <?php endif; ?>
          <div class="product-img-box" style="overflow:hidden;">
   <?php if (!empty($item['photoUrl'])): ?>
     <img src="<?= htmlspecialchars($item['photoUrl']) ?>" style="width:100%;height:100%;object-fit:cover;border-radius:14px;" />
@@ -992,8 +1016,12 @@ if ($isLoggedIn) {
             <div class="product-name-row">
               <span class="product-name"><?= $itemName ?></span>
               <div class="product-price-row">
-                <span class="product-price"><?= $itemPrice ?></span>
-                <div class="sar-icon"></div>
+                <?php if ($itemPrice === null): ?>
+                  <span class="product-price" style="color:#1a6b3a;">Donation</span>
+                <?php else: ?>
+                  <span class="product-price"><?= $itemPrice ?></span>
+                  <div class="sar-icon"></div>
+                <?php endif; ?>
               </div>
             </div>
             <p class="product-desc"><?= $itemDesc ?></p>
