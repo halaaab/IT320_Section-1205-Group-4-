@@ -34,24 +34,476 @@ if ($providerId) {
 }
 
 // ── EXAMPLE: Provider header ──
-// <h1><?= htmlspecialchars($provider['businessName'] ?? '') ?></h1>
-// <p><?= htmlspecialchars($provider['category'] ?? '') ?></p>
-// <p><?= htmlspecialchars($provider['businessDescription'] ?? '') ?></p>
+// <h1>[provider.businessName]</h1>
+// <p>[provider.category]</p>
+// <p>[provider.businessDescription]</p>
 //
 // ── EXAMPLE: Items loop ──
-// <?php foreach ($items as $item): ?>
-//   <a href="item-details.php?itemId=<?= $item['_id'] ?>">
-//     <h3><?= htmlspecialchars($item['itemName']) ?></h3>
-//     <p><?= $item['listingType']==='donate' ? 'Free' : $item['price'].' SAR' ?></p>
+// foreach ($items as $item):
+//   <a href="item-details.php?itemId=[item._id]">
+//     <h3>[item.itemName]</h3>
+//     <p>[item.listingType===donate ? Free : item.price.' SAR']</p>
 //   </a>
-// <?php endforeach; ?>
+// endforeach
+
+// ── Added: session + filter + fav info ──
+require_once '../../back-end/models/Favourite.php';
+
+$isLoggedIn = !empty($_SESSION['customerId']);
+$customerId = $_SESSION['customerId'] ?? null;
+$type       = $_GET['type'] ?? 'all';
+
+// ── Handle favourite toggle directly on this page ──
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'toggle_fav' && $isLoggedIn) {
+    $toggleItemId = trim($_POST['itemId'] ?? '');
+    if ($toggleItemId) {
+        $favModel = new Favourite();
+        if ($favModel->isSaved($customerId, $toggleItemId)) {
+            $favModel->remove($customerId, $toggleItemId);
+        } else {
+            $favModel->add($customerId, $toggleItemId);
+        }
+    }
+    header('Location: ' . $_SERVER['REQUEST_URI']);
+    exit;
+}
+
+$savedIds = [];
+if ($isLoggedIn) {
+    $favs     = (new Favourite())->getByCustomer($customerId);
+    $savedIds = array_map(fn($f) => (string)$f['itemId'], $favs);
+}
+
+$filteredItems = $items;
+if ($type !== 'all') {
+    $filteredItems = array_values(array_filter($items, fn($i) => ($i['listingType'] ?? '') === $type));
+}
+
+// ── Added: expiry alerts for bell icon ──
+require_once '../../back-end/models/Cart.php';
+$expiryAlerts = [];
+$alertCount   = 0;
+if ($isLoggedIn) {
+    try {
+        $now  = time();
+        $soon = $now + 48 * 3600;
+        $cartModel2   = new Cart();
+        $cart2        = $cartModel2->getOrCreate($customerId);
+        $cartItemIds2 = array_map(fn($ci) => (string)$ci['itemId'], (array)($cart2['cartItems'] ?? []));
+        $favs2        = (new Favourite())->getByCustomer($customerId);
+        $favItemIds2  = array_map(fn($f) => (string)$f['itemId'], $favs2);
+        $watchedIds2  = array_unique(array_merge($cartItemIds2, $favItemIds2));
+        $itemModel2   = new Item();
+        foreach ($watchedIds2 as $wid) {
+            try {
+                $witem = $itemModel2->findById($wid);
+                if (!$witem || !isset($witem['expiryDate'])) continue;
+                $expiry = $witem['expiryDate']->toDateTime()->getTimestamp();
+                if ($expiry >= $now && $expiry <= $soon) {
+                    $hoursLeft = ceil(($expiry - $now) / 3600);
+                    $expiryAlerts[] = ['name' => $witem['itemName'] ?? 'Item', 'hoursLeft' => $hoursLeft, 'source' => in_array($wid, $cartItemIds2) ? 'cart' : 'favourites'];
+                }
+            } catch (Throwable) { continue; }
+        }
+        $alertCount = count($expiryAlerts);
+    } catch (Throwable) {}
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>RePlate – <?= htmlspecialchars($provider['businessName'] ?? 'Provider') ?></title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:'DM Sans',sans-serif;background:#f0f5fc;color:#1a2a45;min-height:100vh}
+    a{text-decoration:none;color:inherit}
+
+    /* ── NAVBAR ── */
+    nav { display:flex; align-items:center; justify-content:space-between; padding:0 48px; height:72px; background:linear-gradient(90deg,#1a3a6b 0%,#2255a4 60%,#3a7bd5 100%); position:sticky; top:0; z-index:100; box-shadow:0 2px 16px rgba(26,58,107,0.18); }
+    .nav-left { display:flex; align-items:center; gap:16px; }
+    .nav-logo { height:100px; }
+    .nav-cart { width:40px; height:40px; border-radius:50%; border:2px solid rgba(255,255,255,0.7); display:flex; justify-content:center; align-items:center; cursor:pointer; transition:background 0.2s; text-decoration:none; }
+    .nav-cart:hover { background:rgba(255,255,255,0.15); }
+    .nav-avatar svg { stroke:#fff; }
+    .nav-center { display:flex; align-items:center; gap:40px; }
+    .nav-center a { color:rgba(255,255,255,0.85); text-decoration:none; font-weight:500; font-size:15px; transition:color 0.2s; }
+    .nav-center a:hover { color:#fff; }
+    .nav-center a.active { color:#fff; font-weight:600; border-bottom:2px solid #fff; padding-bottom:2px; }
+    .nav-right { display:flex; align-items:center; gap:12px; }
+    .nav-search-wrap { position:relative; }
+    .search-dropdown { display:none; position:absolute; top:calc(100% + 10px); right:0; width:380px; background:#fff; border-radius:16px; box-shadow:0 8px 40px rgba(26,58,107,0.18); border:1.5px solid #e0eaf5; z-index:9999; overflow:hidden; }
+    .search-dropdown.open { display:block; }
+    .search-section-label { font-size:11px; font-weight:700; color:#b0c4d8; letter-spacing:0.08em; text-transform:uppercase; padding:12px 16px 6px; }
+    .search-item-row { display:flex; align-items:center; gap:12px; padding:10px 16px; cursor:pointer; transition:background 0.15s; text-decoration:none; }
+    .search-item-row:hover { background:#f0f6ff; }
+    .search-thumb { width:38px; height:38px; border-radius:10px; background:#e0eaf5; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:18px; }
+    .search-thumb img { width:100%; height:100%; object-fit:cover; border-radius:10px; }
+    .search-item-name { font-size:14px; font-weight:700; color:#1a3a6b; font-family:'Playfair Display',serif; }
+    .search-item-sub { font-size:12px; color:#7a8fa8; }
+    .search-price { margin-left:auto; font-size:13px; font-weight:700; color:#e07a1a; white-space:nowrap; }
+    .search-divider { height:1px; background:#f0f5fc; margin:4px 0; }
+    .search-empty { padding:24px 16px; text-align:center; color:#b0c4d8; font-size:14px; font-family:'Playfair Display',serif; }
+    .search-loading { padding:18px 16px; text-align:center; color:#b0c4d8; font-size:13px; }
+    .search-no-match { padding:8px 16px 12px; font-size:13px; color:#b0c4d8; font-style:italic; }
+    .search-provider-logo { width:38px; height:38px; border-radius:50%; background:#e0eaf5; flex-shrink:0; overflow:hidden; display:flex; align-items:center; justify-content:center; font-size:15px; font-weight:700; color:#2255a4; }
+    .search-provider-logo img { width:100%; height:100%; object-fit:cover; }
+    .nav-search-wrap svg { position:absolute; left:12px; top:50%; transform:translateY(-50%); opacity:0.6; pointer-events:none; }
+    .nav-search-wrap input { background:rgba(255,255,255,0.15); border:1.5px solid rgba(255,255,255,0.4); border-radius:50px; padding:9px 16px 9px 36px; color:#fff; font-size:14px; outline:none; width:240px; font-family:'Playfair Display',serif; transition:width 0.3s,background 0.2s; }
+    .nav-search-wrap input::placeholder { color:rgba(255,255,255,0.6); }
+    .nav-search-wrap input:focus { width:300px; background:rgba(255,255,255,0.25); }
+    .nav-avatar { width:38px; height:38px; border-radius:50%; border:2px solid rgba(255,255,255,0.6); display:flex; align-items:center; justify-content:center; cursor:pointer; }
+    .btn-signup { background:#fff; color:#1a3a6b; border:none; border-radius:50px; padding:9px 22px; font-weight:700; font-size:14px; font-family:'Playfair Display',serif; cursor:pointer; box-shadow:0 2px 8px rgba(0,0,0,0.1); transition:transform 0.15s,box-shadow 0.15s; }
+    .btn-signup:hover { transform:translateY(-1px); box-shadow:0 4px 16px rgba(0,0,0,0.15); }
+    .btn-login { background:transparent; color:#fff; border:2px solid #fff; border-radius:50px; padding:8px 22px; font-weight:700; font-size:14px; font-family:'Playfair Display',serif; cursor:pointer; transition:background 0.2s; }
+    .btn-login:hover { background:rgba(255,255,255,0.15); }
+    .nav-bell-wrap { position:relative; }
+    .nav-bell { width:38px; height:38px; border-radius:50%; border:2px solid rgba(255,255,255,0.6); display:flex; align-items:center; justify-content:center; cursor:pointer; background:none; transition:background 0.2s; }
+    .nav-bell:hover { background:rgba(255,255,255,0.15); }
+    .bell-badge { position:absolute; top:-3px; right:-3px; width:18px; height:18px; background:#e07a1a; border-radius:50%; border:2px solid transparent; display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:700; color:#fff; pointer-events:none; }
+    .notif-dropdown { display:none; position:absolute; top:48px; right:0; width:320px; background:#fff; border-radius:16px; box-shadow:0 8px 40px rgba(26,58,107,0.18); border:1.5px solid #e0eaf5; z-index:9999; overflow:hidden; }
+    .notif-dropdown.open { display:block; }
+    .notif-header { display:flex; align-items:center; justify-content:space-between; padding:16px 18px 12px; border-bottom:1.5px solid #f0f5fc; }
+    .notif-header-title { font-size:15px; font-weight:700; color:#1a3a6b; font-family:'Playfair Display',serif; }
+    .notif-empty { padding:28px 18px; text-align:center; color:#b0c4d8; font-size:14px; }
+    .notif-item { display:flex; align-items:flex-start; gap:12px; padding:14px 18px; border-bottom:1px solid #f5f8fc; transition:background 0.15s; }
+    .notif-item:last-child { border-bottom:none; }
+    .notif-item:hover { background:#f8fbff; }
+    .notif-icon { width:36px; height:36px; border-radius:50%; background:#fff4e6; display:flex; align-items:center; justify-content:center; flex-shrink:0; margin-top:2px; }
+    .notif-meta { font-size:12px; color:#7a8fa8; display:flex; align-items:center; gap:6px; margin-top:3px; }
+    .notif-source-tag { background:#e8f0ff; color:#2255a4; border-radius:50px; padding:2px 8px; font-size:11px; font-weight:700; }
+    .notif-source-tag.cart { background:#e8f7ee; color:#1a6b3a; }
+    .notif-hours { color:#e07a1a; font-weight:700; }
+
+    /* ── BACK BUTTON ── */
+    .back-btn{position:absolute;top:50%;left:24px;transform:translateY(-50%);width:42px;height:42px;border-radius:50%;background:rgba(255,255,255,0.2);border:2px solid rgba(255,255,255,0.6);display:flex;align-items:center;justify-content:center;color:#fff;font-size:22px;font-weight:700;cursor:pointer;text-decoration:none;transition:background 0.2s;z-index:2}
+    .back-btn:hover{background:rgba(255,255,255,0.35)}
+    .hero-banner{background:linear-gradient(90deg,#1a3a6b 0%,#2a5db5 50%,#6aaee8 100%);height:150px;position:relative;overflow:hidden}
+    .hero-banner::before{content:'';position:absolute;inset:0;background:url('../../images/provider-banner.png') center/cover no-repeat;opacity:0.15}
+
+    /* ── CONTAINER ── */
+    .container{max-width:1140px;margin:0 auto;padding:0 24px}
+
+    /* ── PROVIDER CARD ── */
+    .provider-card{background:#fff;border:1.5px solid #dce7f5;border-radius:20px;padding:28px 32px;margin-top:-40px;position:relative;z-index:2;box-shadow:0 8px 28px rgba(26,58,107,0.1);display:flex;align-items:flex-start;gap:28px;margin-bottom:8px}
+    .prov-logo{width:100px;height:100px;border-radius:18px;object-fit:contain;border:1.5px solid #dce7f5;padding:10px;background:#fff;flex-shrink:0}
+    .prov-logo-ph{width:100px;height:100px;border-radius:18px;background:#e8f0ff;display:grid;place-items:center;color:#1a3a6b;font-size:32px;font-weight:700;flex-shrink:0;border:1.5px solid #dce7f5}
+    .prov-name{font-family:'Playfair Display',serif;font-size:38px;color:#1a3a6b;font-weight:700;margin-bottom:4px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+    .prov-cat-badge{display:inline-block;background:#e8f0ff;color:#2255a4;border-radius:50px;padding:4px 14px;font-size:13px;font-weight:700;font-family:'DM Sans',sans-serif}
+    .prov-divider{height:1.5px;background:#dce7f5;margin:16px 0}
+    .prov-desc{font-size:16px;line-height:1.75;color:#4a5a75;max-width:720px}
+
+    /* ── FILTER TABS ── */
+    .filter-bar{display:flex;gap:12px;margin:28px 0 22px}
+    .filter-tab{padding:9px 28px;border-radius:50px;border:2px solid #e07a1a;background:transparent;color:#e07a1a;font-weight:700;font-size:15px;font-family:'DM Sans',sans-serif;cursor:pointer;transition:all 0.2s;text-decoration:none;display:inline-block}
+    .filter-tab.active,.filter-tab:hover{background:#e07a1a;color:#fff}
+
+    /* ── ITEMS GRID ── */
+    .items-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-bottom:48px}
+    @media(max-width:1000px){.items-grid{grid-template-columns:repeat(2,1fr)}}
+    @media(max-width:580px){.items-grid{grid-template-columns:1fr}}
+
+    /* ── ITEM CARD ── */
+    .item-card{background:#fff;border:1.5px solid #dce7f5;border-radius:20px;overflow:hidden;box-shadow:0 4px 14px rgba(26,58,107,0.07);transition:transform 0.2s,box-shadow 0.2s;display:flex;flex-direction:column}
+    .item-card:hover{transform:translateY(-4px);box-shadow:0 12px 30px rgba(26,58,107,0.13)}
+    .card-top{position:relative;padding:14px 14px 0}
+    .prov-logo-sm{position:absolute;top:14px;left:14px;height:32px;max-width:90px;object-fit:contain}
+    .prov-name-sm{position:absolute;top:14px;left:14px;font-size:12px;font-weight:700;color:#7a8fa8;font-style:italic}
+    .fav-btn{position:absolute;top:10px;right:10px;width:34px;height:34px;border-radius:50%;border:none;background:transparent;cursor:pointer;display:grid;place-items:center;font-size:22px;color:#e04040;transition:transform 0.2s;z-index:2}
+    .fav-btn:hover{transform:scale(1.2)}
+    .item-img{width:100%;height:175px;object-fit:contain;margin-top:8px;padding:8px;border-radius:14px;background:#f8fbff}
+    .item-img-ph{width:100%;height:175px;background:linear-gradient(135deg,#e8f0ff,#dce7f5);border-radius:14px;margin-top:8px;display:grid;place-items:center;color:#7a8fa8;font-size:13px}
+    .card-body{padding:12px 14px 16px;flex:1;display:flex;flex-direction:column}
+    .name-row{display:flex;align-items:baseline;justify-content:space-between;gap:6px;margin-bottom:4px}
+    .item-name{font-weight:700;font-size:15px;color:#1a2a45}
+    .item-price{font-weight:700;font-size:15px;color:#e07a1a;white-space:nowrap}
+    .price-free{color:#1a6b3a}
+    .item-desc{font-size:13px;color:#7a8fa8;line-height:1.5;margin-bottom:12px;flex:1;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+    .view-btn{display:inline-block;background:#1a3a6b;color:#fff;border-radius:50px;padding:8px 20px;font-weight:700;font-size:13px;text-align:center;transition:background 0.2s;align-self:flex-start}
+    .view-btn:hover{background:#2255a4}
+
+    /* ── EMPTY / NOT FOUND ── */
+    .empty-state{grid-column:1/-1;text-align:center;padding:60px 20px;color:#7a8fa8}
+    .empty-state h3{font-family:'Playfair Display',serif;font-size:26px;color:#1a3a6b;margin-bottom:10px}
+    .not-found{text-align:center;padding:80px 24px}
+    .not-found h2{font-family:'Playfair Display',serif;font-size:30px;color:#1a3a6b;margin-bottom:10px}
+    .back-link{display:inline-block;margin-top:18px;background:#e07a1a;color:#fff;border-radius:50px;padding:12px 28px;font-weight:700}
+
+    /* ── FOOTER ── */
+    footer{background:linear-gradient(90deg,#1a3a6b 0%,#2255a4 60%,#3a7bd5 100%);padding:28px 48px;display:flex;flex-direction:column;align-items:center;gap:14px}
+    .footer-top{display:flex;align-items:center;gap:18px}
+    .social-icon{width:42px;height:42px;border-radius:50%;border:1.5px solid rgba(255,255,255,0.5);display:flex;align-items:center;justify-content:center;color:#fff;font-size:16px;font-weight:700;cursor:pointer;text-decoration:none;font-family:'Playfair Display',serif;transition:background 0.2s}
+    .social-icon:hover{background:rgba(255,255,255,0.15)}
+    .footer-divider{width:1px;height:22px;background:rgba(255,255,255,0.3)}
+    .footer-brand{display:flex;align-items:center;gap:8px;color:#fff;font-size:16px;font-weight:700;font-family:'Playfair Display',serif}
+    .footer-email{display:flex;align-items:center;gap:6px;color:rgba(255,255,255,0.9);font-size:14px;font-family:'Playfair Display',serif}
+    .footer-bottom{display:flex;align-items:center;gap:8px;color:rgba(255,255,255,0.7);font-size:13px;font-family:'Playfair Display',serif}
+
+    @media(max-width:700px){nav{padding:0 16px}.provider-card{flex-direction:column;gap:16px;margin-top:-24px;padding:20px}.prov-name{font-size:26px}.nav-center{display:none}}
+  </style>
 </head>
 <body>
-  <!-- YOUR HTML HERE -->
+
+<!-- NAVBAR -->
+<nav>
+  <div class="nav-left">
+    <img class="nav-logo" src="../../images/Replate-white.png" alt="RePlate Logo" />
+    <a href="../customer/cart.php" class="nav-cart">
+      <img src="../../images/Shopping cart.png" alt="Cart" style="width:40px;height:40px;object-fit:contain;" />
+    </a>
+  </div>
+  <div class="nav-center">
+    <a href="../shared/landing.php">Home Page</a>
+    <a href="category.php">Categories</a>
+    <a href="providers-list.php" class="active">Providers</a>
+  </div>
+  <div class="nav-right">
+    <div class="nav-search-wrap" id="searchWrap">
+      <svg width="16" height="16" fill="none" stroke="#fff" stroke-width="2" viewBox="0 0 24 24">
+        <circle cx="11" cy="11" r="8"/>
+        <path d="M21 21l-4.35-4.35"/>
+      </svg>
+      <input type="text" id="searchInput" placeholder="Search products or providers..." autocomplete="off"/>
+      <div class="search-dropdown" id="searchDropdown"></div>
+    </div>
+    <div class="nav-bell-wrap">
+      <button class="nav-bell" onclick="toggleNotifDropdown()">
+        <svg width="18" height="18" fill="none" stroke="#fff" stroke-width="1.8" viewBox="0 0 24 24"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+      </button>
+      <?php if ($alertCount > 0): ?>
+      <span class="bell-badge"><?= $alertCount ?></span>
+      <?php endif; ?>
+      <div class="notif-dropdown" id="notifDropdown">
+        <div class="notif-header">
+          <span class="notif-header-title">⏰ Expiring Soon</span>
+          <span style="font-size:12px;color:#b0c4d8;"><?= $alertCount ?> alert<?= $alertCount !== 1 ? 's' : '' ?></span>
+        </div>
+        <?php if (empty($expiryAlerts)): ?>
+        <div class="notif-empty">
+          <svg width="32" height="32" fill="none" stroke="#c8d8ee" stroke-width="1.5" viewBox="0 0 24 24" style="margin:0 auto 8px;display:block;"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+          No expiry alerts right now
+        </div>
+        <?php else: ?>
+        <?php foreach ($expiryAlerts as $alert): ?>
+        <div class="notif-item">
+          <div class="notif-icon">
+            <svg width="16" height="16" fill="none" stroke="#e07a1a" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          </div>
+          <div>
+            <p style="font-size:14px;font-weight:700;color:#1a3a6b;font-family:'Playfair Display',serif;margin-bottom:3px;"><?= htmlspecialchars($alert['name']) ?></p>
+            <div class="notif-meta">
+              <span class="notif-hours">⏳ <?= $alert['hoursLeft'] ?>h left</span>
+              <span class="notif-source-tag <?= $alert['source'] === 'cart' ? 'cart' : '' ?>">
+                <?= $alert['source'] === 'cart' ? '🛒 Cart' : '♥ Favourites' ?>
+              </span>
+            </div>
+          </div>
+        </div>
+        <?php endforeach; ?>
+        <?php endif; ?>
+      </div>
+    </div>
+    <?php if ($isLoggedIn): ?>
+    <a href="../customer/customer-profile.php" class="nav-avatar">
+      <svg width="20" height="20" fill="none" stroke="#fff" stroke-width="1.8" viewBox="0 0 24 24">
+        <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/>
+        <circle cx="12" cy="7" r="4"/>
+      </svg>
+    </a>
+    <?php else: ?>
+    <button class="nav-avatar" onclick="document.getElementById('authModal').style.display='flex'" style="border:none;cursor:pointer;background:rgba(255,255,255,0.15);">
+      <svg width="20" height="20" fill="none" stroke="#fff" stroke-width="1.8" viewBox="0 0 24 24">
+        <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/>
+        <circle cx="12" cy="7" r="4"/>
+      </svg>
+    </button>
+    <?php endif; ?>
+    <!-- Auth modal -->
+    <div id="authModal" style="display:none;position:fixed;inset:0;background:rgba(12,22,45,0.5);z-index:9999;justify-content:center;align-items:center;" onclick="if(event.target===this)this.style.display='none'">
+      <div style="background:#fff;border-radius:24px;padding:44px 40px;max-width:400px;width:90%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.2);">
+        <h3 style="font-size:22px;font-weight:700;color:#1a3a6b;font-family:'Playfair Display',serif;margin-bottom:10px;">Sign in to continue</h3>
+        <p style="font-size:14px;color:#7a8fa8;margin-bottom:28px;line-height:1.6;">Please log in or create an account.</p>
+        <div style="display:flex;gap:12px;justify-content:center;">
+          <a href="../shared/login.php" style="flex:1;padding:13px 0;border-radius:50px;background:#1a3a6b;color:#fff;font-size:15px;font-weight:700;font-family:'Playfair Display',serif;text-decoration:none;display:flex;align-items:center;justify-content:center;">Log in</a>
+          <a href="../shared/signup-customer.php" style="flex:1;padding:13px 0;border-radius:50px;background:transparent;color:#1a3a6b;font-size:15px;font-weight:700;font-family:'Playfair Display',serif;text-decoration:none;border:2px solid #1a3a6b;display:flex;align-items:center;justify-content:center;">Sign up</a>
+        </div>
+        <button onclick="document.getElementById('authModal').style.display='none'" style="margin-top:18px;background:none;border:none;color:#b0c4d8;font-size:13px;cursor:pointer;font-family:'Playfair Display',serif;">Maybe later</button>
+      </div>
+    </div>
+  </div>
+</nav>
+
+<?php if (!$provider): ?>
+  <div class="not-found">
+    <h2>Provider not found</h2>
+    <p style="color:#7a8fa8">This page is no longer available.</p>
+    <a class="back-link" href="providers-list.php">View all providers</a>
+  </div>
+<?php else: ?>
+
+<!-- ── HERO BANNER ── -->
+<div class="hero-banner" style="position:relative;">
+  <a class="back-btn" href="javascript:history.back()" title="Go back">&#8249;</a>
+</div>
+
+<div class="container">
+
+  <!-- PROVIDER INFO CARD -->
+  <div class="provider-card">
+    <?php if (!empty($provider['businessLogo'])): ?>
+      <img class="prov-logo" src="<?= htmlspecialchars($provider['businessLogo']) ?>" alt="<?= htmlspecialchars($provider['businessName'] ?? '') ?>">
+    <?php else: ?>
+      <div class="prov-logo-ph"><?= htmlspecialchars(substr($provider['businessName'] ?? 'P', 0, 2)) ?></div>
+    <?php endif; ?>
+    <div style="flex:1">
+      <div class="prov-name">
+        <?= htmlspecialchars($provider['businessName'] ?? '') ?>
+        <?php if (!empty($provider['category'])): ?>
+          <span class="prov-cat-badge"><?= htmlspecialchars($provider['category']) ?></span>
+        <?php endif; ?>
+      </div>
+      <div class="prov-divider"></div>
+      <p class="prov-desc"><?= htmlspecialchars($provider['businessDescription'] ?? 'No description available.') ?></p>
+    </div>
+  </div>
+
+  <!-- FILTER TABS -->
+  <div class="filter-bar">
+    <a class="filter-tab <?= $type==='all'    ? 'active':'' ?>" href="?providerId=<?= urlencode($providerId) ?>&type=all">All</a>
+    <a class="filter-tab <?= $type==='donate' ? 'active':'' ?>" href="?providerId=<?= urlencode($providerId) ?>&type=donate">Donation</a>
+    <a class="filter-tab <?= $type==='sell'   ? 'active':'' ?>" href="?providerId=<?= urlencode($providerId) ?>&type=sell">Buying</a>
+  </div>
+
+  <!-- ITEMS GRID -->
+  <div class="items-grid">
+    <?php if (empty($filteredItems)): ?>
+      <div class="empty-state">
+        <h3>No items available</h3>
+        <p>This provider has no items matching this filter.</p>
+      </div>
+    <?php else: ?>
+      <?php foreach ($filteredItems as $item):
+        $itemId  = (string)$item['_id'];
+        $isFree  = ($item['listingType'] ?? '') === 'donate';
+        $isSaved = in_array($itemId, $savedIds, true);
+        $provLogo = $provider['businessLogo'] ?? '';
+        $provName = $provider['businessName'] ?? '';
+      ?>
+      <div class="item-card">
+        <div class="card-top">
+          <?php if ($provLogo): ?>
+            <img class="prov-logo-sm" src="<?= htmlspecialchars($provLogo) ?>" alt="<?= htmlspecialchars($provName) ?>">
+          <?php else: ?>
+            <span class="prov-name-sm"><?= htmlspecialchars($provName) ?></span>
+          <?php endif; ?>
+
+          <?php if ($isLoggedIn): ?>
+            <form method="post" style="display:inline">
+              <input type="hidden" name="action" value="toggle_fav">
+              <input type="hidden" name="itemId" value="<?= htmlspecialchars($itemId) ?>">
+              <button class="fav-btn" type="submit"><?= $isSaved ? '❤️' : '🤍' ?></button>
+            </form>
+          <?php else: ?>
+            <a class="fav-btn" href="../shared/login.php">🤍</a>
+          <?php endif; ?>
+
+          <?php if (!empty($item['photoUrl'])): ?>
+            <img class="item-img" src="<?= htmlspecialchars($item['photoUrl']) ?>" alt="<?= htmlspecialchars($item['itemName'] ?? '') ?>">
+          <?php else: ?>
+            <div class="item-img-ph">No image</div>
+          <?php endif; ?>
+        </div>
+
+        <div class="card-body">
+          <div class="name-row">
+            <span class="item-name"><?= htmlspecialchars($item['itemName'] ?? 'Item') ?></span>
+            <?php if ($isFree): ?>
+              <span class="item-price price-free">Free</span>
+            <?php else: ?>
+              <span class="item-price"><?= number_format((float)($item['price'] ?? 0), 2) ?> ﷼</span>
+            <?php endif; ?>
+          </div>
+          <p class="item-desc"><?= htmlspecialchars($item['description'] ?? '') ?></p>
+          <a class="view-btn" href="item-details.php?itemId=<?= urlencode($itemId) ?>">View item</a>
+        </div>
+      </div>
+      <?php endforeach; ?>
+    <?php endif; ?>
+  </div>
+
+</div><!-- /container -->
+<?php endif; ?>
+
+<!-- ── FOOTER ── -->
+<footer>
+  <div class="footer-top">
+    <div style="display:flex;align-items:center;gap:10px;">
+      <a class="social-icon" href="#">in</a>
+      <a class="social-icon" href="#">&#120143;</a>
+      <a class="social-icon" href="#">&#9834;</a>
+    </div>
+    <div class="footer-divider"></div>
+    <div class="footer-brand"></div>
+    <div class="footer-divider"></div>
+    <div class="footer-email">
+      <svg width="16" height="16" fill="none" stroke="rgba(255,255,255,0.85)" stroke-width="2" viewBox="0 0 24 24">
+        <rect x="2" y="4" width="20" height="16" rx="2"/>
+        <path d="M2 7l10 7 10-7"/>
+      </svg>
+      Replate@gmail.com
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <span>© 2026</span>
+    <img src="../../images/Replate-white.png" alt="Replate" style="height:50px;object-fit:contain;opacity:1;" />
+    <span>All rights reserved.</span>
+  </div>
+</footer>
+
+<script>
+  function toggleNotifDropdown() {
+    document.getElementById('notifDropdown').classList.toggle('open');
+  }
+  const searchInput = document.getElementById('searchInput');
+  const searchDropdown = document.getElementById('searchDropdown');
+  const searchWrap = document.getElementById('searchWrap');
+  let searchTimer = null;
+  searchInput?.addEventListener('input', function() {
+    clearTimeout(searchTimer);
+    const q = this.value.trim();
+    if (q.length < 2) { searchDropdown?.classList.remove('open'); return; }
+    searchDropdown.innerHTML = '<div class="search-loading">Searching...</div>';
+    searchDropdown.classList.add('open');
+    searchTimer = setTimeout(async () => {
+      try {
+        const res = await fetch(`../../back-end/search.php?q=${encodeURIComponent(q)}`);
+        const data = await res.json();
+        let html = '<div class="search-section-label">Providers</div>';
+        if (data.providers?.length) {
+          data.providers.forEach(p => {
+            const logo = p.businessLogo ? `<div class="search-provider-logo"><img src="${p.businessLogo}"/></div>` : `<div class="search-provider-logo">${p.businessName.charAt(0).toUpperCase()}</div>`;
+            html += `<a class="search-item-row" href="providers-page.php?providerId=${p.id}">${logo}<div><p class="search-item-name">${p.businessName}</p><p class="search-item-sub">${p.category}</p></div></a>`;
+          });
+        } else { html += `<div class="search-no-match">No providers match "<em>${q}</em>"</div>`; }
+        html += '<div class="search-divider"></div><div class="search-section-label">Products</div>';
+        if (data.items?.length) {
+          data.items.forEach(item => {
+            const thumb = item.photoUrl ? `<div class="search-thumb"><img src="${item.photoUrl}"/></div>` : '<div class="search-thumb">🍱</div>';
+            html += `<a class="search-item-row" href="item-details.php?itemId=${item.id}">${thumb}<div><p class="search-item-name">${item.name}</p><p class="search-item-sub">Product</p></div><span class="search-price">${item.price}</span></a>`;
+          });
+        } else { html += `<div class="search-no-match">No products match "<em>${q}</em>"</div>`; }
+        searchDropdown.innerHTML = html;
+        searchDropdown.classList.add('open');
+      } catch(e) { searchDropdown.innerHTML = '<div class="search-empty">Something went wrong.</div>'; }
+    }, 280);
+  });
+  searchInput?.addEventListener('keydown', e => { if (e.key === 'Escape') searchDropdown?.classList.remove('open'); });
+  document.addEventListener('click', e => {
+    if (searchWrap && !searchWrap.contains(e.target)) searchDropdown?.classList.remove('open');
+    if (!document.querySelector('.nav-bell-wrap')?.contains(e.target)) document.getElementById('notifDropdown')?.classList.remove('open');
+  });
+</script>
 </body>
 </html>

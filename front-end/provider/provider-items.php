@@ -27,7 +27,7 @@ $categoryModel = new Category();
 $providerModel = new Provider();
 $locationModel = new PickupLocation();
 
-$categories = $categoryModel->findAll();
+$categories = $categoryModel->getAll();
 
 $itemFilter = [];
 if ($tab === 'sell') {
@@ -42,7 +42,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $photoUrl = '';
 
 if (!empty($_FILES['itemPhoto']['name'])) {
-$uploadDir = '../../uploads/';
+$uploadDir = '../../uploads/items/';
 if (!is_dir($uploadDir)) {
 mkdir($uploadDir, 0777, true);
 }
@@ -51,7 +51,7 @@ $fileName = time() . '_' . basename($_FILES['itemPhoto']['name']);
 $targetPath = $uploadDir . $fileName;
 
 if (move_uploaded_file($_FILES['itemPhoto']['tmp_name'], $targetPath)) {
-$photoUrl = '../../uploads/' . $fileName;
+$photoUrl = '../../uploads/items/' . $fileName;
 }
 }
 
@@ -413,6 +413,50 @@ cursor:pointer;
 background:#df7413;
 }
 
+.slot-btn {
+padding: 8px 16px;
+border-radius: 999px;
+border: 1.8px solid #cfdbea;
+background: #fff;
+color: #183482;
+font-size: 14px;
+font-family: 'Playfair Display', serif;
+cursor: pointer;
+transition: background .2s, color .2s, border-color .2s;
+}
+.slot-btn:hover { background: #fff8f2; border-color: #ea8b2c; }
+.slot-btn.selected { background: #ea8b2c; color: #fff; border-color: #ea8b2c; }
+
+.add-item-open-btn {
+background: #f6811f;
+color: #fff;
+border: none;
+border-radius: 999px;
+padding: 12px 28px;
+font-size: 17px;
+font-family: 'Playfair Display', serif;
+font-weight: 700;
+cursor: pointer;
+transition: background .2s;
+}
+.add-item-open-btn:hover { background: #df7413; }
+
+.type-card {
+display: flex;
+flex-direction: column;
+align-items: center;
+justify-content: center;
+padding: 20px 16px;
+border: 2px solid #cfdbea;
+border-radius: 18px;
+background: #fff;
+cursor: pointer;
+transition: border-color .2s, background .2s, box-shadow .2s;
+text-align: center;
+}
+.type-card:hover { border-color: #ea8b2c; background: #fff8f2; }
+.type-card-active { border-color: #ea8b2c !important; background: #fff4e6 !important; box-shadow: 0 0 0 3px rgba(234,139,44,0.15); }
+
 @media (max-width: 760px){
 .form-grid{
 grid-template-columns:1fr;
@@ -554,11 +598,11 @@ border-radius:18px;
       <p class="sidebar-welcome">Welcome Back ,</p>
       <p class="sidebar-name"><?= htmlspecialchars($firstName) ?></p>
       <nav class="sidebar-nav">
-        <a href="provider-dashboard.php" class="sidebar-link active">
+        <a href="provider-dashboard.php" class="sidebar-link ">
           <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
           DashBoard
         </a>
-        <a href="provider-items.php" class="sidebar-link">
+        <a href="provider-items.php" class="sidebar-link active">
           <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M20 7H4a2 2 0 00-2 2v10a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2z"/><path d="M16 3H8a2 2 0 00-2 2v2h12V5a2 2 0 00-2-2z"/></svg>
           Items
         </a>
@@ -577,29 +621,30 @@ border-radius:18px;
           <a href="#" class="sidebar-social-icon">in</a>
           <a href="#" class="sidebar-social-icon">&#120143;</a>
           <a href="#" class="sidebar-social-icon">&#9834;</a>
-          
+         
         </div>
         <div class="sidebar-footer-copy">
-          <span>© 2026</span>
+          <span>©️ 2026</span>
           <img src="../../images/Replate-white.png" alt="" style="height:40px;object-fit:contain;opacity:0.45;"/>
           <span>All rights reserved.</span>
         </div>
       </div>
     </aside>
     <main class="main">
-    <div class="segmented">
-     <a class="seg-btn <?= $tab==='sell'?'active':'' ?>" href="provider-items.php?tab=sell">Sell</a>
-<a class="seg-btn <?= $tab==='donate'?'active':'' ?>" href="provider-items.php?tab=donate">Donate</a>
-<a class="seg-btn <?= $tab==='all'?'active':'' ?>" href="provider-items.php?tab=all">All</a>
-
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-top:32px;margin-bottom:28px;margin-left:8px;">
+      <div style="display:flex;gap:16px;">
+        <a class="seg-btn <?= $tab==='sell'?'active':'' ?>" href="provider-items.php?tab=sell">Sell</a>
+        <a class="seg-btn <?= $tab==='donate'?'active':'' ?>" href="provider-items.php?tab=donate">Donate</a>
+        <a class="seg-btn <?= $tab==='all'?'active':'' ?>" href="provider-items.php?tab=all">All</a>
+      </div>
+      <button class="add-item-open-btn" onclick="document.getElementById('addItemModal').style.display='flex'">+ Add Item</button>
     </div>
     <div class="items-list">
-<?php if (!$items): ?>
+<?php if (empty($items)): ?>
 <div style="text-align:center;padding:32px 12px;color:#6d7da0;font-size:22px;">
 No <?= htmlspecialchars($tab) ?> items yet.
 </div>
-<?php endif; ?>
-
+<?php else: ?>
 <?php foreach ($items as $item): ?>
 <?php
 $categoryName = 'Unknown category';
@@ -646,261 +691,240 @@ $priceText = ($item['listingType'] ?? '') === 'donate'
 </div>
 </a>
 <?php endforeach; ?>
-</div>
-
-  <div class="add-item-wrap">
-<h1><span>Add</span> Item</h1>
-
-<div class="add-item-card">
-<div class="provider-preview-logo">
-<?php if (!empty($providerLogo)): ?>
-<img src="<?= htmlspecialchars($providerLogo) ?>" alt="<?= htmlspecialchars($providerName) ?>">
-<?php else: ?>
-<div style="font-size:34px;font-weight:700;color:#183482;">
-<?= htmlspecialchars($providerName) ?>
-</div>
 <?php endif; ?>
 </div>
 
-<form class="add-item-form" method="POST" action="" enctype="multipart/form-data">
+  <!-- ADD ITEM MODAL -->
+  <div id="addItemModal" style="display:none;position:fixed;inset:0;background:rgba(12,22,45,0.45);z-index:9999;justify-content:center;align-items:center;padding:20px;" onclick="if(event.target===this)this.style.display='none'">
+    <div style="background:#f7fbff;border-radius:26px;border:1.5px solid #cfdbea;padding:36px 32px;max-width:760px;width:100%;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(26,58,107,0.18);position:relative;">
 
-<div>
-<div class="section-label">Select type</div>
-<div class="type-row">
-<label class="type-option">
-<input type="radio" name="itemType" value="donate">
-<span>Donate</span>
-</label>
+      <button onclick="document.getElementById('addItemModal').style.display='none'" style="position:absolute;top:16px;right:20px;background:none;border:none;font-size:26px;color:#8aa3c0;cursor:pointer;line-height:1;">&times;</button>
 
-<label class="type-option">
-<input type="radio" name="itemType" value="sell">
-<span>Sell</span>
-</label>
-</div>
-</div>
+      <h1 style="font-size:36px;font-weight:700;font-family:'Playfair Display',serif;background:linear-gradient(90deg,#143496 0%,#66a1d9 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;text-align:center;margin-bottom:28px;">Add Item</h1>
 
-<div class="price-wrap" id="priceWrap">
-<div class="section-label">Price</div>
-<input class="form-input" type="number" name="price" id="priceInput" step="0.01" min="0" placeholder="Enter price">
-<div class="field-error" id="priceError"></div>
-</div>
+      <form class="add-item-form" id="addItemForm" method="POST" action="" enctype="multipart/form-data">
 
-<input class="form-input" type="text" name="itemName" id="itemName" placeholder="Item Name..." required>
-<div class="field-error" id="itemNameError"></div>
+        <!-- Card-style type selector -->
+        <div>
+          <div class="section-label" style="margin-bottom:12px;">Select type <span style="color:#d64545;">*</span></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+            <label class="type-card" id="typeCardDonate" onclick="selectTypeCard('donate')">
+              <input type="radio" name="itemType" value="donate" style="display:none;">
+              <div style="font-size:28px;margin-bottom:6px;">🤝</div>
+              <div style="font-size:17px;font-weight:700;color:#183482;">Donate</div>
+              <div style="font-size:12px;color:#7a8fa8;margin-top:4px;">Give it for free</div>
+            </label>
+            <label class="type-card" id="typeCardSell" onclick="selectTypeCard('sell')">
+              <input type="radio" name="itemType" value="sell" style="display:none;">
+              <div style="font-size:28px;margin-bottom:6px;">🏷️</div>
+              <div style="font-size:17px;font-weight:700;color:#183482;">Sell</div>
+              <div style="font-size:12px;color:#7a8fa8;margin-top:4px;">Set a price</div>
+            </label>
+          </div>
+          <div class="field-error" id="itemTypeError">Please select a type.</div>
+        </div>
 
-<textarea class="form-textarea" name="itemDetails" id="itemDetails" placeholder="Item details ..." required></textarea>
-<div class="field-error" id="itemDetailsError"></div>
+        <div class="price-wrap" id="priceWrap">
+          <div class="section-label">Price <span style="color:#d64545;">*</span></div>
+          <input class="form-input" type="number" name="price" id="priceInput" step="0.01" min="0" placeholder="Enter price">
+          <div class="field-error" id="priceError">Please enter a valid price.</div>
+        </div>
 
-<div>
-<div class="icon-label">
-<span class="icon"></span>
-<span>Upload Item Photo</span>
-</div>
-<input class="form-input" type="file" name="itemPhoto" id="itemPhoto" accept="image/*" required>
-<div class="field-error" id="itemPhotoError"></div>
-<div>
-<div class="icon-label">
-<span class="icon"></span>
-<span>Category</span>
-</div>
-<select class="form-select" name="categoryId" id="category" required>
-<option value="">Select category</option>
+        <div>
+          <input class="form-input" type="text" name="itemName" id="itemName" placeholder="Item Name...">
+          <div class="field-error" id="itemNameError">Item name is required.</div>
+        </div>
 
-<?php foreach ($categories as $cat): ?>
-<option value="<?= htmlspecialchars((string)$cat['_id']) ?>">
-<?= htmlspecialchars($cat['name']) ?>
-</option>
-<?php endforeach; ?>
+        <div>
+          <textarea class="form-textarea" name="itemDetails" id="itemDetails" placeholder="Item details ..."></textarea>
+          <div class="field-error" id="itemDetailsError">Item details are required.</div>
+        </div>
 
-</select>
-<div class="field-error" id="categoryError"></div>
-</div>
+        <div>
+          <div class="icon-label"><span>Upload Item Photo <span style="color:#d64545;">*</span></span></div>
+          <input class="form-input" type="file" name="itemPhoto" id="itemPhoto" accept="image/*">
+          <div class="field-error" id="itemPhotoError">Please upload a photo.</div>
+        </div>
 
+        <div>
+          <div class="icon-label"><span>Category <span style="color:#d64545;">*</span></span></div>
+          <select class="form-select" name="categoryId" id="category">
+            <option value="">Select category</option>
+            <?php foreach ($categories as $cat): ?>
+            <option value="<?= htmlspecialchars((string)$cat['_id']) ?>"><?= htmlspecialchars($cat['name']) ?></option>
+            <?php endforeach; ?>
+          </select>
+          <div class="field-error" id="categoryError">Please select a category.</div>
+        </div>
 
-</div>
+        <div class="form-grid">
+          <div>
+            <div class="icon-label"><span>Expiry Date <span style="color:#d64545;">*</span></span></div>
+            <input class="form-date" type="date" name="expiryDate" id="expiryDate" min="2026-01-01">
+            <div class="field-error" id="expiryDateError">Expiry date is required.</div>
+          </div>
+          <div>
+            <div class="icon-label"><span>Pickup Location <span style="color:#d64545;">*</span></span></div>
+            <select class="form-select" name="pickupLocationId" id="pickupLocationId">
+              <option value="">Select pickup location</option>
+              <?php foreach ($locations as $location): ?>
+              <option value="<?= htmlspecialchars((string)$location['_id']) ?>">
+                <?= htmlspecialchars(trim(implode(' - ', array_filter([$location['locationName'] ?? '', $location['address'] ?? '', $location['city'] ?? ''])))) ?>
+              </option>
+              <?php endforeach; ?>
+            </select>
+            <div class="field-error" id="pickupLocationIdError">Please select a pickup location.</div>
+          </div>
+        </div>
 
-<div class="form-grid">
-<div>
-<div class="icon-label">
-<span class="icon"></span>
-<span>Expiry Date</span>
-</div>
-<input class="form-date" type="date" name="expiryDate" id="expiryDate" min="2026-01-01" required>
-<div class="field-error" id="expiryDateError"></div>
-</div>
+        <div>
+          <div class="icon-label"><span>Pickup Times <span style="color:#d64545;">*</span></span></div>
+          <div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
+            <?php
+            $slots = ['8:00 AM','9:00 AM','10:00 AM','11:00 AM','12:00 PM','1:00 PM','2:00 PM','3:00 PM','4:00 PM','5:00 PM','6:00 PM','7:00 PM','8:00 PM'];
+            foreach ($slots as $slot): ?>
+            <button type="button" class="slot-btn" onclick="toggleSlot('<?= $slot ?>', this)"><?= $slot ?></button>
+            <?php endforeach; ?>
+          </div>
+          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:10px;">
+            <select id="customHour" style="width:110px;height:42px;border:1.5px solid #cfdbea;border-radius:999px;padding:0 14px;font-family:'Playfair Display',serif;font-size:15px;color:#183482;background:#fff;outline:none;cursor:pointer;">
+              <option value="">Hour</option>
+              <?php for($h=1;$h<=12;$h++): ?><option value="<?=$h?>"><?=$h?></option><?php endfor; ?>
+            </select>
+            <select id="customMinute" style="width:110px;height:42px;border:1.5px solid #cfdbea;border-radius:999px;padding:0 14px;font-family:'Playfair Display',serif;font-size:15px;color:#183482;background:#fff;outline:none;cursor:pointer;">
+              <option value="">Min</option>
+              <option value="00">00</option><option value="15">15</option><option value="30">30</option><option value="45">45</option>
+            </select>
+            <select id="customAmPm" style="width:90px;height:42px;border:1.5px solid #cfdbea;border-radius:999px;padding:0 14px;font-family:'Playfair Display',serif;font-size:15px;color:#183482;background:#fff;outline:none;cursor:pointer;">
+              <option value="AM">AM</option><option value="PM">PM</option>
+            </select>
+            <button type="button" class="add-time-btn" onclick="addCustomTime()">+ Add</button>
+          </div>
+          <div class="field-error" id="pickupTimesError">Please add at least one pickup time.</div>
+          <div class="time-list" id="timeList" style="margin-top:14px;"></div>
+          <div id="hiddenTimesWrap"></div>
+        </div>
 
-<div>
-<div class="icon-label">
-<span class="icon"></span>
-<span>Pickup Location</span>
-</div>
-<select class="form-select" name="pickupLocationId" id="pickupLocationId" required>
-<option value="">Select pickup location</option>
-<?php foreach ($locations as $location): ?>
-<option value="<?= htmlspecialchars((string)$location['_id']) ?>">
-<?= htmlspecialchars(
-trim(
-implode(' - ', array_filter([
-$location['locationName'] ?? '',
-$location['address'] ?? '',
-$location['city'] ?? ''
-]))
-)
-) ?>
-</option>
-<?php endforeach; ?>
-</select>
-<div class="field-error" id="pickupLocationIdError"></div>
-</div>
-</div>
+        <div class="submit-row">
+          <button class="add-btn" type="submit">Add Item</button>
+        </div>
 
-<div>
-<div class="icon-label">
-<span class="icon"></span>
-<span>Pickup time</span>
-</div>
-
-<div class="time-picker-row">
-<input class="form-date" type="date" id="pickupDatePicker" min="2026-01-01">
-<input class="form-time" type="time" id="pickupTimePicker" >
-<button type="button" class="add-time-btn" id="addTimeBtn">Add time</button>
-</div>
-
-<div class="time-list" id="timeList"></div>
-<div id="hiddenTimesWrap"></div>
-</div>
-
-<div class="submit-row">
-<button class="add-btn" type="submit">Add</button>
-</div>
-
-</form>
-</div>
-</div>
-
+      </form>
+    </div>
+  </div>
 
      </main>
     <script>
-const form = document.querySelector('.add-item-form');
-const typeInputs = document.querySelectorAll('input[name="itemType"]');
+const form = document.getElementById('addItemForm');
 const priceWrap = document.getElementById('priceWrap');
 const priceInput = document.getElementById('priceInput');
-
-function togglePriceField() {
-const selected = document.querySelector('input[name="itemType"]:checked');
-
-if (selected && selected.value === 'sell') {
-priceWrap.style.display = 'block';
-} else {
-priceWrap.style.display = 'none';
-if (priceInput) priceInput.value = '';
-}
-}
-
-typeInputs.forEach(input => {
-input.addEventListener('change', togglePriceField);
-});
-
-priceWrap.style.display = 'none';
-
-const addTimeBtn = document.getElementById('addTimeBtn');
-const pickupDatePicker = document.getElementById('pickupDatePicker');
-const pickupTimePicker = document.getElementById('pickupTimePicker');
 const timeList = document.getElementById('timeList');
 const hiddenTimesWrap = document.getElementById('hiddenTimesWrap');
-
 let pickupTimes = [];
 
+// ── Card type selector ──
+function selectTypeCard(type) {
+  document.querySelector('input[name="itemType"][value="'+type+'"]').checked = true;
+  document.getElementById('typeCardDonate').classList.toggle('type-card-active', type === 'donate');
+  document.getElementById('typeCardSell').classList.toggle('type-card-active', type === 'sell');
+  priceWrap.style.display = (type === 'sell') ? 'block' : 'none';
+  if (type !== 'sell' && priceInput) priceInput.value = '';
+  hideError('itemTypeError');
+}
+priceWrap.style.display = 'none';
+
+// ── Time rendering ──
 function renderPickupTimes() {
-timeList.innerHTML = '';
-hiddenTimesWrap.innerHTML = '';
-
-pickupTimes.forEach((entry, index) => {
-const chip = document.createElement('div');
-chip.className = 'time-chip';
-chip.innerHTML = `
-<span>${entry.date} - ${entry.time}</span>
-<button type="button" data-index="${index}">&times;</button>
-`;
-timeList.appendChild(chip);
-
-const hiddenInput = document.createElement('input');
-hiddenInput.type = 'hidden';
-hiddenInput.name = 'pickupTimes[]';
-hiddenInput.value = JSON.stringify(entry);
-hiddenTimesWrap.appendChild(hiddenInput);
-});
-
-document.querySelectorAll('.time-chip button').forEach(btn => {
-btn.addEventListener('click', function () {
-const index = Number(this.dataset.index);
-pickupTimes.splice(index, 1);
-renderPickupTimes();
-});
-});
+  timeList.innerHTML = '';
+  hiddenTimesWrap.innerHTML = '';
+  pickupTimes.forEach((t, index) => {
+    const chip = document.createElement('div');
+    chip.className = 'time-chip';
+    chip.innerHTML = `<span>${t}</span><button type="button" data-index="${index}">&times;</button>`;
+    timeList.appendChild(chip);
+    const hidden = document.createElement('input');
+    hidden.type = 'hidden'; hidden.name = 'pickupTimes[]'; hidden.value = t;
+    hiddenTimesWrap.appendChild(hidden);
+  });
+  document.querySelectorAll('.time-chip button').forEach(btn => {
+    btn.addEventListener('click', function() {
+      const t = pickupTimes[Number(this.dataset.index)];
+      pickupTimes.splice(Number(this.dataset.index), 1);
+      document.querySelectorAll('.slot-btn').forEach(b => { if (b.textContent === t) b.classList.remove('selected'); });
+      renderPickupTimes();
+    });
+  });
 }
 
-addTimeBtn.addEventListener('click', function () {
-const date = pickupDatePicker.value;
-const time = pickupTimePicker.value;
-
-if (!date || !time) {
-alert('Please select both pickup date and pickup time.');
-return;
+function toggleSlot(time, btn) {
+  if (btn.classList.contains('selected')) {
+    btn.classList.remove('selected');
+    pickupTimes = pickupTimes.filter(t => t !== time);
+  } else {
+    btn.classList.add('selected');
+    if (!pickupTimes.includes(time)) pickupTimes.push(time);
+  }
+  renderPickupTimes();
 }
 
-if (date < '2026-01-01') {
-alert('Pickup date must be in 2026 or later.');
-return;
+function addCustomTime() {
+  const hour = document.getElementById('customHour').value;
+  const minute = document.getElementById('customMinute').value;
+  const ampm = document.getElementById('customAmPm').value;
+  if (!hour || !minute) { showError('pickupTimesError'); return; }
+  const label = `${hour}:${minute} ${ampm}`;
+  if (!pickupTimes.includes(label)) { pickupTimes.push(label); renderPickupTimes(); }
+  document.getElementById('customHour').value = '';
+  document.getElementById('customMinute').value = '';
 }
 
-pickupTimes.push({ date, time });
-renderPickupTimes();
+// ── Error helpers ──
+function showError(id) { document.getElementById(id)?.classList.add('show'); }
+function hideError(id) { document.getElementById(id)?.classList.remove('show'); }
+function markField(el, hasError) { el?.classList.toggle('error', hasError); }
 
-pickupDatePicker.value = '';
-pickupTimePicker.value = '';
-});
-
+// ── Validation ──
 form.addEventListener('submit', function(e) {
-    if (pickupTimes.length === 0) {
-alert('Please add at least one pickup date and time.');
-valid = false;
-}
-let valid = true;
+  let valid = true;
 
-const itemName = document.getElementById('itemName');
-const itemDetails = document.getElementById('itemDetails');
-const itemPhoto = document.getElementById('itemPhoto');
-const expiryDate = document.getElementById('expiryDate');
-const pickupLocationId = document.getElementById('pickupLocationId');
-const category = document.getElementById('category');
+  const typeChecked = document.querySelector('input[name="itemType"]:checked');
+  if (!typeChecked) { showError('itemTypeError'); valid = false; } else { hideError('itemTypeError'); }
 
-if (!document.querySelector('input[name="itemType"]:checked')) {
-valid = false;
-alert('Please select item type.');
-}
+  if (typeChecked && typeChecked.value === 'sell') {
+    if (!priceInput.value || Number(priceInput.value) <= 0) { showError('priceError'); markField(priceInput, true); valid = false; }
+    else { hideError('priceError'); markField(priceInput, false); }
+  }
 
-if (!itemName.value.trim()) valid = false;
-if (!itemDetails.value.trim()) valid = false;
-if (!itemPhoto.value) valid = false;
-if (!expiryDate.value) valid = false;
-if (!pickupLocationId.value) valid = false;
-if (!category.value) valid = false;
+  const itemName = document.getElementById('itemName');
+  if (!itemName.value.trim()) { showError('itemNameError'); markField(itemName, true); valid = false; }
+  else { hideError('itemNameError'); markField(itemName, false); }
 
-const selected = document.querySelector('input[name="itemType"]:checked');
-if (selected && selected.value === 'sell') {
-if (!priceInput.value || Number(priceInput.value) <= 0) {
-valid = false;
-}
-}
+  const itemDetails = document.getElementById('itemDetails');
+  if (!itemDetails.value.trim()) { showError('itemDetailsError'); markField(itemDetails, true); valid = false; }
+  else { hideError('itemDetailsError'); markField(itemDetails, false); }
 
-if (!valid) {
-e.preventDefault();
-}
+  const itemPhoto = document.getElementById('itemPhoto');
+  if (!itemPhoto.value) { showError('itemPhotoError'); markField(itemPhoto, true); valid = false; }
+  else { hideError('itemPhotoError'); markField(itemPhoto, false); }
+
+  const category = document.getElementById('category');
+  if (!category.value) { showError('categoryError'); markField(category, true); valid = false; }
+  else { hideError('categoryError'); markField(category, false); }
+
+  const expiryDate = document.getElementById('expiryDate');
+  if (!expiryDate.value) { showError('expiryDateError'); markField(expiryDate, true); valid = false; }
+  else { hideError('expiryDateError'); markField(expiryDate, false); }
+
+  const pickupLocationId = document.getElementById('pickupLocationId');
+  if (!pickupLocationId.value) { showError('pickupLocationIdError'); markField(pickupLocationId, true); valid = false; }
+  else { hideError('pickupLocationIdError'); markField(pickupLocationId, false); }
+
+  if (pickupTimes.length === 0) { showError('pickupTimesError'); valid = false; }
+  else { hideError('pickupTimesError'); }
+
+  if (!valid) e.preventDefault();
 });
 </script>
-
-
 
 </body>
 </html>
