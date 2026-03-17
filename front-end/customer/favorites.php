@@ -555,7 +555,7 @@ unset($fav);
     function hl(text, q) {
       return text.replace(
         new RegExp(`(${q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')})`, 'gi'),
-        '<mark style="background:#fff4e6;color:#e07a1a;border-radius:3px;padding:0 2px;">$1</mark>'
+        '<mark style="background:#fff4e6;color:#e07a1a;border-radius:3px;padding:0 4px;">$1</mark>'
       );
     }
 
