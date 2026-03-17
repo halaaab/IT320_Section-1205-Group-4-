@@ -50,7 +50,7 @@ foreach ($savedRefs as $ref) {
 //     <input type="hidden" name="itemId" value="<?= $item['_id'] ?>" />
 //     <button type="submit">Remove</button>
 //   </form>
-// <?php endforeach; ?>
+// 
 ?>
 <!DOCTYPE html>
 <html lang="en">
