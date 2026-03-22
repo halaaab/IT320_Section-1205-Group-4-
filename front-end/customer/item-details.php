@@ -103,14 +103,27 @@ $isLoggedIn = !empty($customerId);
 function fmtExpiry($value): string {
     if (!$value) return '';
     try {
-        $dt   = $value instanceof MongoDB\BSON\UTCDateTime ? $value->toDateTime() : new DateTime((string)$value);
-        $now  = new DateTime();
-        $diff = $dt->diff($now);
-        $days = (int)abs($dt->getTimestamp() - time()) / 86400;
-        $daysInt = (int)$days;
-        $label = $dt < $now ? 'expired' : ($daysInt . ' day' . ($daysInt !== 1 ? 's' : '') . ' left');
-        return $dt->format('d M Y') . ' (' . $label . ')';
-    } catch (Throwable) { return ''; }
+        $now = new DateTime('now', new DateTimeZone('Asia/Riyadh'));
+        $dt  = $value instanceof MongoDB\BSON\UTCDateTime ? $value->toDateTime() : new DateTime((string)$value);
+        $dt->setTimezone(new DateTimeZone('Asia/Riyadh'));
+
+        $daysLeft = (int)$now->diff($dt)->format('%r%a');
+        $daysText = $daysLeft >= 0 ? "($daysLeft days)" : '(Expired)';
+
+        return $dt->format('d M Y') . ' ' . $daysText;
+    } catch (Throwable $e) {
+        return '';
+    }
+}
+
+function fmtPickupTime($value): string {
+    if (!$value) return '';
+    try {
+        $dt = new DateTime((string)$value, new DateTimeZone('Asia/Riyadh'));
+        return $dt->format('Y-m-d - h:iA');
+    } catch (Throwable $e) {
+        return (string)$value;
+    }
 }
 ?>
 <!DOCTYPE html>
@@ -150,8 +163,26 @@ function fmtExpiry($value): string {
     .hero-back:hover{background:#e8f0ff}
     .hero-fav{position:absolute;top:20px;right:24px;width:44px;height:44px;border-radius:50%;border:none;background:#fff;display:grid;place-items:center;font-size:26px;cursor:pointer;box-shadow:0 2px 12px rgba(26,58,107,0.12);transition:transform 0.2s}
     .hero-fav:hover{transform:scale(1.15)}
-    .prov-hero-logo{position:absolute;top:20px;left:76px;height:44px;max-width:120px;object-fit:contain}
-    .prov-hero-name{position:absolute;top:28px;left:76px;font-size:14px;font-weight:700;color:#7a8fa8;font-style:italic}
+    .prov-hero-logo{
+  position:absolute;
+  bottom:22px;
+  left:calc(50% - 230px);
+  height:52px;
+  max-width:110px;
+  object-fit:contain;
+  z-index:2;
+}
+
+.prov-hero-name{
+  position:absolute;
+  bottom:32px;
+  left:calc(50% - 230px);
+  font-size:14px;
+  font-weight:700;
+  color:#7a8fa8;
+  font-style:italic;
+  z-index:2;
+}
     .hero-food-img{max-height:270px;max-width:480px;width:100%;object-fit:contain;position:relative;z-index:1;filter:drop-shadow(0 8px 20px rgba(26,58,107,0.14))}
     .hero-placeholder{width:100%;max-width:480px;height:250px;background:linear-gradient(135deg,#c8dbf5,#dce7f5);border-radius:20px;display:grid;place-items:center;color:#7a8fa8;font-size:16px}
 
@@ -160,7 +191,14 @@ function fmtExpiry($value): string {
 
     .title-row{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:10px}
     .item-title{font-family:'Playfair Display',serif;font-size:42px;color:#1a3a6b;font-weight:700;line-height:1.2}
-    .item-price-big{font-weight:700;font-size:28px;color:#e07a1a;white-space:nowrap;padding-top:8px}
+    .item-price-big{
+  display:flex;
+  align-items:center;
+  gap:6px;
+  font-weight:700;
+  font-size:28px;
+  color:#e07a1a;
+}
     .price-free-big{color:#1a6b3a}
     .item-ingredients{font-size:16px;color:#7a8fa8;margin-bottom:12px;line-height:1.6}
     .expiry-row{display:flex;align-items:center;gap:8px;font-size:15px;color:#1a2a45;margin-bottom:22px}
@@ -182,9 +220,36 @@ function fmtExpiry($value): string {
     .time-chip.selected,.time-chip:hover{border-color:#1a3a6b;background:#e8f0ff;color:#1a3a6b;font-weight:700}
 
     /* Map */
-    .map-box{width:100%;border-radius:20px;overflow:hidden;border:1.5px solid #dce7f5;background:linear-gradient(135deg,#c8dbf5,#dce7f5);height:210px;display:flex;align-items:center;justify-content:center;margin-bottom:8px;box-shadow:0 4px 14px rgba(26,58,107,0.08)}
+    .map-box{width:100%;border-radius:20px;overflow:hidden;border:1.5px solid #dce7f5;height:210px;margin-bottom:8px;box-shadow:0 4px 14px rgba(26,58,107,0.08);display:block;cursor:pointer}
+    .map-box iframe{width:100%;height:100%;border:none;border-radius:20px;display:block}
+    .map-box-placeholder{width:100%;border-radius:20px;overflow:hidden;border:1.5px solid #dce7f5;background:linear-gradient(135deg,#c8dbf5,#dce7f5);height:210px;display:flex;align-items:center;justify-content:center;margin-bottom:8px;box-shadow:0 4px 14px rgba(26,58,107,0.08)}
     .map-pin{font-size:40px}
     .location-text{font-size:13px;color:#7a8fa8;margin-top:6px}
+
+    .detail-add-btn-wrap{
+  display:flex;
+  justify-content:center;
+  margin-top:24px;
+}
+
+.detail-add-btn{
+  background:#e88922;
+  color:#fff;
+  border:none;
+  border-radius:16px;
+  padding:16px 70px;
+  font-family:'Playfair Display',serif;
+  font-size:20px;
+  font-weight:700;
+  cursor:pointer;
+  box-shadow:0 6px 16px rgba(224,122,26,0.22);
+  transition:0.2s;
+}
+
+.detail-add-btn:hover{
+  transform:translateY(-1px);
+  opacity:0.95;
+}
 
     /* Flash */
     .flash{background:#e8f7ec;border:1.5px solid #b6dfbf;color:#1a6b3a;border-radius:14px;padding:13px 18px;margin-bottom:18px;font-weight:600}
@@ -212,6 +277,58 @@ function fmtExpiry($value): string {
     .footer-links{display:flex;justify-content:center;align-items:center;gap:18px;flex-wrap:wrap;font-size:14px;opacity:0.9;margin-bottom:8px}
     .footer-logo{font-family:'Playfair Display',serif;font-size:17px;font-weight:700}
     .footer-copy{font-size:12px;opacity:0.6}
+
+    .detail-add-btn{
+  background:#e88922;
+  color:#fff;
+  border:none;
+  border-radius:22px;
+  padding:16px 26px;
+  width:100%;
+  max-width:420px;
+
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+
+  font-family:'Playfair Display',serif;
+  font-size:22px;
+  font-weight:700;
+
+  cursor:pointer;
+  box-shadow:0 6px 16px rgba(224,122,26,0.25);
+  transition:0.2s;
+}
+
+.detail-add-btn:hover{
+  transform:translateY(-1px);
+}
+
+.btn-text{
+  font-size:26px;
+}
+
+.btn-price{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  font-size:22px;
+  font-weight:700;
+}
+
+.riyal-icon{
+  width:26px;
+  height:26px;
+  object-fit:contain;
+}
+
+.riyal-icon-top{
+  width:28px;
+  height:28px;
+  object-fit:contain;
+  margin-left:6px;
+  vertical-align:middle;
+}
 
     @media(max-width:700px){nav.navbar{padding:0 16px}.item-hero{padding:20px 16px 0}.item-title{font-size:28px}.nav-center{display:none}}
   </style>
@@ -259,7 +376,7 @@ function fmtExpiry($value): string {
 <?php else:
   $isFree      = ($item['listingType'] ?? '') === 'donate';
   $price       = (float)($item['price'] ?? 0);
-  $maxQty      = max(1, (int)($item['quantity'] ?? 1));
+  $maxQty      = max(99, (int)($item['quantity'] ?? 99));
   $pickupTimes = $item['pickupTimes'] ?? [];
   $provName    = $provider['businessName'] ?? '';
   $provLogo    = $provider['businessLogo'] ?? '';
@@ -282,10 +399,14 @@ function fmtExpiry($value): string {
   <?php if ($isLoggedIn): ?>
     <form method="post" style="display:inline">
       <input type="hidden" name="action" value="toggle_fav">
-      <button class="hero-fav" type="submit"><?= $isSaved ? '❤️' : '🤍' ?></button>
+      <button class="hero-fav <?= $isSaved ? 'liked' : '' ?>" type="submit">
+        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style="width:28px;height:28px;overflow:visible"><path class="heart-path" style="fill:<?= $isSaved ? '#c0392b' : 'none' ?>;stroke:#8b1a1a;stroke-width:2;transition:fill 0.2s,stroke 0.2s" d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+      </button>
     </form>
   <?php else: ?>
-    <a class="hero-fav" href="../shared/login.php" style="text-decoration:none;display:grid;place-items:center">🤍</a>
+    <a class="hero-fav" href="../shared/login.php" style="text-decoration:none;display:grid;place-items:center">
+      <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style="width:28px;height:28px;overflow:visible"><path style="fill:none;stroke:#8b1a1a;stroke-width:2" d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+    </a>
   <?php endif; ?>
 
   <?php if (!empty($item['photoUrl'])): ?>
@@ -305,9 +426,12 @@ function fmtExpiry($value): string {
   <div class="title-row">
     <h1 class="item-title"><?= htmlspecialchars($item['itemName'] ?? 'Item') ?></h1>
     <?php if ($isFree): ?>
-      <span class="item-price-big price-free-big">Free</span>
+      <span class="item-price-big price-free-big">Donation</span>
     <?php else: ?>
-      <span class="item-price-big"><?= number_format($price, 2) ?> ﷼</span>
+      <span class="item-price-big">
+  <?= number_format($price, 2) ?>
+  <img src="../../images/riyal.png" class="riyal-icon-top">
+</span>
     <?php endif; ?>
   </div>
 
@@ -317,7 +441,7 @@ function fmtExpiry($value): string {
 
   <?php if ($expiryStr): ?>
     <div class="expiry-row">
-      <span>📅</span>
+      
       Expiry date: <span class="expiry-date"><?= htmlspecialchars($expiryStr) ?></span>
     </div>
   <?php endif; ?>
@@ -344,21 +468,47 @@ function fmtExpiry($value): string {
         <div class="pickup-times" style="margin-bottom:28px">
           <?php foreach ($pickupTimes as $i => $t): ?>
             <div class="time-chip <?= $i === 0 ? 'selected' : '' ?>"
-                 onclick="selectTime(this,'<?= htmlspecialchars($t) ?>')">
-              <?= htmlspecialchars($t) ?>
-            </div>
-          <?php endforeach; ?>
+               onclick="selectTime(this,'<?= htmlspecialchars($t) ?>')">
+                 <?= htmlspecialchars(fmtPickupTime($t)) ?>
+           </div>
+      <?php endforeach; ?>
         </div>
       <?php endif; ?>
 
       <?php if ($location): ?>
         <div class="divider"></div>
         <p class="section-label">Pickup location</p>
-        <?php if ($mapLink): ?><a href="<?= htmlspecialchars($mapLink) ?>" target="_blank" rel="noopener"><?php endif; ?>
-        <div class="map-box"><div class="map-pin">📍</div></div>
-        <?php if ($mapLink): ?></a><?php endif; ?>
+        <?php if ($mapLink): ?>
+          <a class="map-box" href="<?= htmlspecialchars($mapLink) ?>" target="_blank" rel="noopener">
+            <iframe
+              src="https://maps.google.com/maps?q=<?= urlencode((string)$lat) ?>,<?= urlencode((string)$lng) ?>&zoom=15&output=embed"
+              loading="lazy" allowfullscreen referrerpolicy="no-referrer-when-downgrade">
+            </iframe>
+          </a>
+        <?php else: ?>
+          <div class="map-box-placeholder"><div class="map-pin">📍</div></div>
+        <?php endif; ?>
         <p class="location-text"><?= htmlspecialchars(trim(($location['street'] ?? '') . ', ' . ($location['city'] ?? ''))) ?></p>
+        <div class="detail-add-btn-wrap">
+  <button class="detail-add-btn" type="submit" form="cartForm">
+    
+    <span class="btn-text">
+      <?= $inCart ? 'Update cart' : 'Add to cart' ?>
+    </span>
+
+    <?php if (!$isFree): ?>
+      <span class="btn-price">
+        <span id="btnTotal"><?= number_format($price, 2) ?></span>
+        <img src="../../images/riyal.png" class="riyal-icon">
+      </span>
+    <?php else: ?>
+      <span class="btn-price">Free</span>
+    <?php endif; ?>
+
+  </button>
+</div>
       <?php endif; ?>
+      
     </form>
 
   <?php elseif ($isLoggedIn && !($item['isAvailable'] ?? false)): ?>
@@ -382,7 +532,16 @@ function fmtExpiry($value): string {
     <?php if ($location): ?>
       <div class="divider"></div>
       <p class="section-label">Pickup location</p>
-      <div class="map-box"><div class="map-pin">📍</div></div>
+      <?php if ($mapLink): ?>
+        <a class="map-box" href="<?= htmlspecialchars($mapLink) ?>" target="_blank" rel="noopener">
+          <iframe
+            src="https://maps.google.com/maps?q=<?= urlencode((string)$lat) ?>,<?= urlencode((string)$lng) ?>&zoom=15&output=embed"
+            loading="lazy" allowfullscreen referrerpolicy="no-referrer-when-downgrade">
+          </iframe>
+        </a>
+      <?php else: ?>
+        <div class="map-box-placeholder"><div class="map-pin">📍</div></div>
+      <?php endif; ?>
       <p class="location-text"><?= htmlspecialchars(trim(($location['street'] ?? '') . ', ' . ($location['city'] ?? ''))) ?></p>
     <?php endif; ?>
   <?php endif; ?>
@@ -396,41 +555,31 @@ function fmtExpiry($value): string {
     <span class="footer-logo">Replate</span>
     <span>✉</span><span>Replate@gmail.com</span>
   </div>
-  <div class="footer-copy">© 2026 Replate &nbsp; All rights reserved.</div>
+  <div class="footer-copy">©️ 2026 Replate &nbsp; All rights reserved.</div>
 </footer>
 
-<!-- ── STICKY BOTTOM BAR ── -->
-<?php if ($isLoggedIn && ($item['isAvailable'] ?? false)): ?>
-  <div class="cart-bar">
-    <div class="cart-bar-inner">
-      <button class="cart-bar-btn" type="submit" form="cartForm">
-        <?= $inCart ? 'Update Cart' : 'Add to cart' ?>
-      </button>
-      <?php if (!$isFree): ?>
-        <div class="cart-bar-price" id="totalDisplay"><?= number_format($price, 2) ?> ﷼</div>
-      <?php else: ?>
-        <div class="cart-bar-price">Free</div>
-      <?php endif; ?>
-    </div>
-  </div>
-<?php elseif (!$isLoggedIn): ?>
-  <div class="login-bar">
-    <a href="../shared/login.php">Log in</a> or <a href="../shared/signup-customer.php">sign up</a> to add this item to your cart.
-  </div>
-<?php endif; ?>
+
 
 <script>
   const maxQty = <?= (int)$maxQty ?>;
-  const price  = <?= $isFree ? 0 : $price ?>;
-  let qty = 1;
+let qty = 1;
 
-  function changeQty(delta) {
-    qty = Math.min(maxQty, Math.max(1, qty + delta));
-    document.getElementById('qtyDisplay').textContent = qty;
-    document.getElementById('qtyInput').value = qty;
-    const td = document.getElementById('totalDisplay');
-    if (td && price > 0) td.textContent = (price * qty).toFixed(2) + ' ﷼';
+const price  = <?= $isFree ? 0 : $price ?>;
+
+function changeQty(delta) {
+  qty = Math.min(maxQty, Math.max(1, qty + delta));
+
+  const qtyDisplay = document.getElementById('qtyDisplay');
+  const qtyInput   = document.getElementById('qtyInput');
+  const totalEl    = document.getElementById('btnTotal');
+
+  if (qtyDisplay) qtyDisplay.textContent = qty;
+  if (qtyInput) qtyInput.value = qty;
+
+  if (totalEl && price > 0) {
+    totalEl.textContent = (price * qty).toFixed(2);
   }
+}
 
   function selectTime(el, time) {
     document.querySelectorAll('.time-chip').forEach(c => c.classList.remove('selected'));

@@ -53,13 +53,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $errors['category'] = 'Please select a valid category.';
     }
 
-    if (
-        !isset($_FILES['logo']) ||
-        $_FILES['logo']['error'] === UPLOAD_ERR_NO_FILE
-    ) {
-        $errors['logo'] = 'Business logo is required.';
-    }
-
+    if (empty($_POST['logoUrl']) && (!isset($_FILES['logo']) || $_FILES['logo']['error'] === UPLOAD_ERR_NO_FILE)) {
+    $errors['logo'] = 'Business logo is required.';
+}
     if (!filter_var($old['email'], FILTER_VALIDATE_EMAIL)) {
         $errors['email'] = 'Please enter a valid email.';
     }
@@ -100,79 +96,69 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $errors['email'] = 'This email is already registered.';
             } else {
                 // ── Handle logo upload ──
-                $logoUrl = '';
-                if (isset($_FILES['logo']) && $_FILES['logo']['error'] === UPLOAD_ERR_OK) {
-                    $uploadDir = '../../uploads/logos/';
-                    if (!is_dir($uploadDir)) mkdir($uploadDir, 0755, true);
-                    $ext      = strtolower(pathinfo($_FILES['logo']['name'], PATHINFO_EXTENSION));
-                    $allowed  = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
-                    if (in_array($ext, $allowed)) {
-                        $filename = uniqid('logo_', true) . '.' . $ext;
-                        if (move_uploaded_file($_FILES['logo']['tmp_name'], $uploadDir . $filename)) {
-                            $logoUrl = '../../uploads/logos/' . $filename;
-                        }
-                    }
-                }
 
-                $providerId = $model->create([
-    'businessName'        => $old['businessName'],
-    'email'               => $old['email'],
-    'password'            => $old['password'],
-    'phoneNumber'         => $old['phone'],
-    'businessDescription' => $old['businessDescription'],
-    'category'            => $old['category'],
-    'businessLogo'        => $logoUrl,
-]);
+$logoUrl = trim($_POST['logoUrl'] ?? '');
 
-$fullStreet = trim($old['street'] . ' ' . $old['apt']);
-$cityValue  = $old['city'] ?: 'Riyadh';
-$zipValue   = $old['zip'] ?: '';
+if (!$logoUrl) {
+    $errors['logo'] = 'Business logo upload failed.';
+} else {
+    $providerId = $model->create([
+        'businessName'        => $old['businessName'],
+        'email'               => $old['email'],
+        'password'            => $old['password'],
+        'phoneNumber'         => $old['phone'],
+        'businessDescription' => $old['businessDescription'],
+        'category'            => $old['category'],
+        'businessLogo'        => $logoUrl,
+    ]);
 
-// If the provider used the map, reverse-geocode the coordinates into a real address
-if ($old['locationMode'] === 'map') {
-    $lat = (float)$old['lat'];
-    $lng = (float)$old['lng'];
+    $fullStreet = trim($old['street'] . ' ' . $old['apt']);
+    $cityValue  = $old['city'] ?: 'Riyadh';
+    $zipValue   = $old['zip'] ?: '';
 
-    $geocodeUrl = "https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat={$lat}&lon={$lng}&accept-language=en";
-    $ctx = stream_context_create(['http' => [
-        'header'  => "User-Agent: RePlate/1.0 (replateapp@gmail.com)\r\n",
-        'timeout' => 5,
-    ]]);
-    $json = @file_get_contents($geocodeUrl, false, $ctx);
+    if ($old['locationMode'] === 'map') {
+        $lat = (float)$old['lat'];
+        $lng = (float)$old['lng'];
 
-    if ($json) {
-        $geo = json_decode($json, true);
-        $addr = $geo['address'] ?? [];
+        $geocodeUrl = "https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat={$lat}&lon={$lng}&accept-language=en";
+        $ctx = stream_context_create(['http' => [
+            'header'  => "User-Agent: RePlate/1.0 (replateapp@gmail.com)\r\n",
+            'timeout' => 5,
+        ]]);
+        $json = @file_get_contents($geocodeUrl, false, $ctx);
 
-        // Build a street string from available components
-        $road    = $addr['road'] ?? $addr['pedestrian'] ?? $addr['footway'] ?? '';
-        $house   = $addr['house_number'] ?? '';
-        $suburb  = $addr['suburb'] ?? $addr['neighbourhood'] ?? $addr['quarter'] ?? '';
-        $parts   = array_filter([$house, $road, $suburb]);
-        $fullStreet = $parts ? implode(', ', $parts) : ($geo['display_name'] ?? 'Map Selected Location');
+        if ($json) {
+            $geo = json_decode($json, true);
+            $addr = $geo['address'] ?? [];
 
-        $cityValue = $addr['city'] ?? $addr['town'] ?? $addr['village'] ?? $addr['county'] ?? 'Riyadh';
-        $zipValue  = $addr['postcode'] ?? '';
+            $road   = $addr['road'] ?? $addr['pedestrian'] ?? $addr['footway'] ?? '';
+            $house  = $addr['house_number'] ?? '';
+            $suburb = $addr['suburb'] ?? $addr['neighbourhood'] ?? $addr['quarter'] ?? '';
+            $parts  = array_filter([$house, $road, $suburb]);
+
+            $fullStreet = $parts ? implode(', ', $parts) : ($geo['display_name'] ?? 'Map Selected Location');
+            $cityValue  = $addr['city'] ?? $addr['town'] ?? $addr['village'] ?? $addr['county'] ?? 'Riyadh';
+            $zipValue   = $addr['postcode'] ?? '';
+        }
     }
+
+    (new PickupLocation())->create($providerId, [
+        'label'     => 'Main Branch',
+        'street'    => $fullStreet ?: 'Map Selected Location',
+        'city'      => $cityValue,
+        'zip'       => $zipValue,
+        'lat'       => (float)$old['lat'],
+        'lng'       => (float)$old['lng'],
+        'isDefault' => true,
+    ]);
+
+    $_SESSION['providerId'] = (string)$providerId;
+    $_SESSION['providerName'] = $old['businessName'];
+
+    header('Location: ../provider/provider-dashboard.php');
+    exit;
 }
-
-(new PickupLocation())->create($providerId, [
-    'label'     => 'Main Branch',
-    'street'    => $fullStreet ?: 'Map Selected Location',
-    'city'      => $cityValue,
-    'zip'       => $zipValue,
-    'lat'       => (float)$old['lat'],
-    'lng'       => (float)$old['lng'],
-    'isDefault' => true,
-]);
-
-$_SESSION['providerId'] = (string)$providerId;
-$_SESSION['providerName'] = $old['businessName'];
-
-header('Location: ../provider/provider-dashboard.php');
-exit;
-            }
-        } catch (Throwable $e) {
+       } } catch (Throwable $e) {
             die('Provider signup error: ' . $e->getMessage());
         }
     }
@@ -672,7 +658,8 @@ $hasErrors = !empty($errors);
                 <span>Business Logo</span>
                 <span class="required-mark">Required</span>
               </label>
-              <input class="field-input <?= isset($errors['logo']) ? 'error' : '' ?>" id="logo" name="logo" type="file" accept="image/*">
+             <input class="field-input <?= isset($errors['logo']) ? 'error' : '' ?>" id="logo" name="logo" type="file" accept="image/*">
+<input type="hidden" name="logoUrl" id="logoUrl" value="">
               <span class="field-error <?= isset($errors['logo']) ? 'show' : '' ?>" id="logoError"><?= $errors['logo'] ?? '' ?></span>
             </div>
 
@@ -951,7 +938,13 @@ $hasErrors = !empty($errors);
       const businessName = document.getElementById('businessName').value.trim();
       const businessDescription = document.getElementById('businessDescription').value.trim();
       const category = document.getElementById('category').value.trim();
-      const logo = document.getElementById('logo').files.length;
+    const logo = document.getElementById('logo').files.length;
+const logoUrl = document.getElementById('logoUrl').value.trim();
+
+if (!logo && !logoUrl) {
+  showFieldError('logo', 'logoError', 'Business logo is required.');
+  valid = false;
+}
 
       if (!businessName) {
         showFieldError('businessName', 'businessNameError', 'Business name is required.');
@@ -968,11 +961,7 @@ $hasErrors = !empty($errors);
         valid = false;
       }
 
-      if (!logo) {
-        showFieldError('logo', 'logoError', 'Business logo is required.');
-        valid = false;
-      }
-
+      
       if (valid) goToStep(2);
     }
 
@@ -1102,5 +1091,48 @@ $hasErrors = !empty($errors);
 
     setLocationMode(savedLocationMode);
   </script>
+  <script src="https://upload-widget.cloudinary.com/latest/global/all.js"></script>
+  <script src="https://upload-widget.cloudinary.com/latest/global/all.js"></script>
+<script>
+const providerForm = document.getElementById('providerForm');
+const logoInput = document.getElementById('logo');
+const logoUrlInput = document.getElementById('logoUrl');
+
+providerForm.addEventListener('submit', function(e) {
+  const isStep3Active = document.getElementById('step3').classList.contains('active');
+  if (!isStep3Active) return;
+
+  if (logoUrlInput.value || !logoInput.files[0]) {
+    return;
+  }
+
+  e.preventDefault();
+
+  const widget = cloudinary.createUploadWidget(
+    {
+      cloudName: 'dwsafdzwr',
+      uploadPreset: 'replate_logos',
+      multiple: false,
+      maxFiles: 1,
+      resourceType: 'image',
+      folder: 'replate/logos'
+    },
+    (error, result) => {
+      if (error) {
+        console.error(error);
+        alert('Logo upload failed.');
+        return;
+      }
+
+      if (result && result.event === 'success') {
+        logoUrlInput.value = result.info.secure_url;
+        providerForm.submit();
+      }
+    }
+  );
+
+  widget.open();
+});
+</script>
 </body>
 </html>

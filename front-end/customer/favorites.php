@@ -228,73 +228,37 @@ unset($fav);
     .notif-panel-empty { padding: 40px 20px; text-align: center; color: #b0c4d8; font-size: 14px; font-family: 'Playfair Display', serif; }
     .notif-panel-empty svg { display: block; margin: 0 auto 12px; }
 
-    /* ── FAVOURITES CONTENT ── */
+    /* ── FAVOURITES CARD — identical to landing page product-card ── */
     .fav-title { font-size: 30px; font-weight: 700; color: #1a3a6b; font-family: 'Playfair Display', serif; margin-bottom: 24px; }
-
-    .fav-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-      gap: 18px;
-    }
-
-    .fav-card {
-      background: #fff;
-      border: 1.5px solid #dce7f5;
-      border-radius: 18px;
-      overflow: hidden;
-      box-shadow: 0 4px 14px rgba(26,58,107,0.07);
-      transition: transform 0.2s, box-shadow 0.2s;
-      display: flex;
-      flex-direction: column;
-    }
-    .fav-card:hover { transform: translateY(-3px); box-shadow: 0 10px 28px rgba(26,58,107,0.13); }
-
-    .fav-card-top { position: relative; padding: 12px 12px 0; }
-    .fav-prov-logo { position: absolute; top: 12px; left: 12px; height: 28px; max-width: 80px; object-fit: contain; }
-    .fav-prov-name { position: absolute; top: 12px; left: 12px; font-size: 12px; font-weight: 700; color: #7a8fa8; font-style: italic; }
-    .fav-heart-btn {
-      position: absolute; top: 10px; right: 10px;
-      width: 32px; height: 32px; border-radius: 50%;
-      border: none; background: transparent;
-      cursor: pointer; display: grid; place-items: center;
-      font-size: 20px; color: #e04040;
-      transition: transform 0.2s; z-index: 2;
-    }
-    .fav-heart-btn:hover { transform: scale(1.2); }
-    .fav-img {
-      width: 100%; height: 150px;
-      object-fit: contain; margin-top: 8px;
-      padding: 6px; border-radius: 12px;
-      background: #f8fbff;
-    }
-    .fav-img-placeholder {
-      width: 100%; height: 150px;
-      background: linear-gradient(135deg, #e8f0ff, #dce7f5);
-      border-radius: 12px; margin-top: 8px;
-      display: grid; place-items: center;
-      color: #7a8fa8; font-size: 12px;
-    }
-
-    .fav-card-body { padding: 10px 12px 14px; flex: 1; display: flex; flex-direction: column; }
-    .fav-name-row { display: flex; align-items: baseline; justify-content: space-between; gap: 6px; margin-bottom: 4px; }
-    .fav-name { font-weight: 700; font-size: 14px; color: #1a2a45; }
-    .fav-price { font-weight: 700; font-size: 14px; color: #e07a1a; white-space: nowrap; }
-    .fav-price-free { color: #1a6b3a; }
-    .fav-desc { font-size: 12px; color: #7a8fa8; line-height: 1.5; margin-bottom: 10px; flex: 1; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-family: 'DM Sans', sans-serif; }
-    .fav-view-btn {
-      display: inline-block; background: #1a3a6b; color: #fff;
-      border-radius: 50px; padding: 7px 16px;
-      font-weight: 700; font-size: 13px; text-align: center;
-      transition: background 0.2s; align-self: flex-start;
-      text-decoration: none;
-    }
-    .fav-view-btn:hover { background: #2255a4; }
-
-    .fav-empty {
-      padding: 60px 24px; text-align: center; color: #b0c4d8;
-    }
-    .fav-empty h3 { font-size: 24px; font-weight: 700; color: #1a3a6b; margin-bottom: 10px; }
-    .fav-empty a { display: inline-block; margin-top: 16px; background: #e07a1a; color: #fff; border-radius: 50px; padding: 12px 28px; font-weight: 700; text-decoration: none; }
+    .fav-grid { display: grid; grid-template-columns: repeat(auto-fill, 260px); gap: 20px; justify-content: start; }
+    .fav-card { min-width:260px; max-width:260px; background:#f2f4f8; border-radius:24px; border:1.5px solid #c8d8ee; padding:18px 18px 20px; display:flex; flex-direction:column; gap:0; box-shadow:0 2px 14px rgba(26,58,107,0.07); transition:box-shadow 0.2s,transform 0.2s; }
+    .fav-card:hover { box-shadow:0 8px 28px rgba(26,58,107,0.13); transform:translateY(-3px); }
+    .fav-card-top { display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; }
+    .fav-prov-box { display:flex; align-items:center; gap:8px; }
+    .fav-prov-circle { width:32px; height:32px; background:#c8d8ee; border-radius:50%; flex-shrink:0; overflow:hidden; display:flex; align-items:center; justify-content:center; }
+    .fav-prov-circle img { width:100%; height:100%; object-fit:cover; }
+    .fav-prov-name-txt { font-size:15px; font-weight:700; color:#1a3a6b; font-family:'Playfair Display',serif; }
+    .fav-heart-btn { background:none; border:none; cursor:pointer; display:flex; align-items:center; justify-content:center; padding:0; transition:transform 0.2s; }
+    .fav-heart-btn:hover { transform:scale(1.15); }
+    .fav-heart-btn svg { width:28px; height:28px; overflow:visible; }
+    .fav-heart-btn .heart-path { fill:#c0392b; stroke:#c0392b; stroke-width:2; }
+    .fav-img-box { width:100%; height:130px; background:#d8e6f5; border-radius:14px; margin-bottom:16px; overflow:hidden; display:flex; align-items:center; justify-content:center; }
+    .fav-img-box img { width:100%; height:100%; object-fit:cover; border-radius:14px; }
+    .fav-img-ph-text { font-size:13px; color:#8aa3c0; }
+    .fav-divider { width:100%; height:1.5px; background:#c0d2e8; margin-bottom:14px; }
+    .fav-card-body { display:flex; flex-direction:column; gap:8px; }
+    .fav-name-row { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+    .fav-name { font-size:18px; font-weight:700; color:#1a3a6b; font-family:'Playfair Display',serif; }
+    .fav-price-row { display:flex; align-items:center; gap:5px; }
+    .fav-price { font-size:16px; font-weight:700; color:#e07a1a; }
+    .fav-price-free { color:#1a6b3a; }
+    .fav-sar-box { width:22px; height:22px; background:#c8d8ee; border-radius:4px; flex-shrink:0; }
+    .fav-desc { font-size:13px; color:#4a6a9a; line-height:1.5; font-family:'Playfair Display',serif; }
+    .fav-view-btn { background:#1a3a6b; color:#fff; border:none; border-radius:50px; padding:12px 0; font-size:15px; font-family:'Playfair Display',serif; cursor:pointer; font-weight:700; width:80%; text-align:center; margin:8px auto 0; display:block; transition:background 0.2s; text-decoration:none; }
+    .fav-view-btn:hover { background:#2255a4; }
+    .fav-empty { padding:60px 24px; text-align:center; color:#b0c4d8; }
+    .fav-empty h3 { font-size:24px; font-weight:700; color:#1a3a6b; margin-bottom:10px; }
+    .fav-empty a { display:inline-block; margin-top:16px; background:#e07a1a; color:#fff; border-radius:50px; padding:12px 28px; font-weight:700; text-decoration:none; }
   </style>
 </head>
 <body>
@@ -347,7 +311,7 @@ unset($fav);
               <div class="notif-meta">
                 <span class="notif-hours">⏳ <?= $alert['hoursLeft'] ?>h left</span>
                 <span class="notif-source-tag <?= $alert['source'] === 'cart' ? 'cart' : '' ?>">
-                  <?= $alert['source'] === 'cart' ? '🛒 Cart' : '♥ Favourites' ?>
+                  <?= $alert['source'] === 'cart' ? '🛒 Cart' : '♥️ Favourites' ?>
                 </span>
               </div>
             </div>
@@ -405,7 +369,7 @@ unset($fav);
           <span>Replate@gmail.com</span>
         </div>
         <div class="sidebar-footer-copy">
-          <span>© 2026</span>
+          <span>©️ 2026</span>
           <img src="../../images/Replate-white.png" alt="" style="height:14px;object-fit:contain;opacity:0.5;"/>
           <span>All rights reserved.</span>
         </div>
@@ -435,35 +399,51 @@ unset($fav);
                 $provName = $item['_provName'] ?? '';
               ?>
               <div class="fav-card">
+                <!-- Top: provider logo + name | heart -->
                 <div class="fav-card-top">
-                  <?php if ($provLogo): ?>
-                    <img class="fav-prov-logo" src="<?= htmlspecialchars($provLogo) ?>" alt="<?= htmlspecialchars($provName) ?>">
-                  <?php else: ?>
-                    <span class="fav-prov-name"><?= htmlspecialchars($provName) ?></span>
-                  <?php endif; ?>
-
-                  <!-- Heart button: clicking removes from favourites -->
+                  <div class="fav-prov-box">
+                    <div class="fav-prov-circle">
+                      <?php if ($provLogo): ?>
+                        <img src="<?= htmlspecialchars($provLogo) ?>" alt="<?= htmlspecialchars($provName) ?>">
+                      <?php else: ?>
+                        <span style="font-size:12px;font-weight:700;color:#2255a4;"><?= htmlspecialchars(mb_strtoupper(mb_substr($provName,0,1))) ?></span>
+                      <?php endif; ?>
+                    </div>
+                    <span class="fav-prov-name-txt"><?= htmlspecialchars($provName) ?></span>
+                  </div>
                   <form method="POST" style="display:inline;">
                     <input type="hidden" name="action" value="remove"/>
                     <input type="hidden" name="itemId" value="<?= htmlspecialchars($itemId) ?>"/>
-                    <button class="fav-heart-btn" type="submit" title="Remove from favourites">❤️</button>
+                    <button class="fav-heart-btn" type="submit" title="Remove from favourites">
+                      <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path class="heart-path" d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+                    </button>
                   </form>
+                </div>
 
+                <!-- Image -->
+                <div class="fav-img-box">
                   <?php if (!empty($item['photoUrl'])): ?>
-                    <img class="fav-img" src="<?= htmlspecialchars($item['photoUrl']) ?>" alt="<?= htmlspecialchars($item['itemName'] ?? '') ?>">
+                    <img src="<?= htmlspecialchars($item['photoUrl']) ?>" alt="<?= htmlspecialchars($item['itemName'] ?? '') ?>">
                   <?php else: ?>
-                    <div class="fav-img-placeholder">No image</div>
+                    <span class="fav-img-ph-text">No image</span>
                   <?php endif; ?>
                 </div>
 
+                <!-- Divider -->
+                <div class="fav-divider"></div>
+
+                <!-- Bottom -->
                 <div class="fav-card-body">
                   <div class="fav-name-row">
                     <span class="fav-name"><?= htmlspecialchars($item['itemName'] ?? 'Item') ?></span>
-                    <?php if ($isFree): ?>
-                      <span class="fav-price fav-price-free">Free</span>
-                    <?php else: ?>
-                      <span class="fav-price"><?= number_format((float)($item['price'] ?? 0), 2) ?> ﷼</span>
-                    <?php endif; ?>
+                    <div class="fav-price-row">
+                      <?php if ($isFree): ?>
+                        <span class="fav-price fav-price-free">Free</span>
+                      <?php else: ?>
+                        <span class="fav-price"><?= number_format((float)($item['price'] ?? 0), 2) ?></span>
+                        <div class="fav-sar-box"></div>
+                      <?php endif; ?>
+                    </div>
                   </div>
                   <p class="fav-desc"><?= htmlspecialchars($item['description'] ?? '') ?></p>
                   <a class="fav-view-btn" href="item-details.php?itemId=<?= urlencode($itemId) ?>">View item</a>
@@ -555,7 +535,7 @@ unset($fav);
     function hl(text, q) {
       return text.replace(
         new RegExp(`(${q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')})`, 'gi'),
-        '<mark style="background:#fff4e6;color:#e07a1a;border-radius:3px;padding:0 4px;">$1</mark>'
+        '<mark style="background:#fff4e6;color:#e07a1a;border-radius:3px;padding:0 2px;">$1</mark>'
       );
     }
 

@@ -8,6 +8,19 @@ require_once '../../back-end/models/Favourite.php';
 require_once '../../back-end/models/Cart.php';
 require_once '../../back-end/models/Item.php';
 
+// ── AJAX: mark notifications as read ──
+if (!empty($_SERVER['HTTP_ACCEPT']) && str_contains($_SERVER['HTTP_ACCEPT'], 'application/json') && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    session_start();
+    header('Content-Type: application/json');
+    if (empty($_SESSION['customerId'])) { echo json_encode(['success'=>false]); exit; }
+    $inp = json_decode(file_get_contents('php://input'), true);
+    $nm  = new Notification();
+    $cid = $_SESSION['customerId'];
+    if (($inp['action']??'') === 'mark_read')     $nm->markRead(trim($inp['notifId']??''));
+    if (($inp['action']??'') === 'mark_all_read') $nm->markAllRead($cid);
+    echo json_encode(['success'=>true]); exit;
+}
+
 if (empty($_SESSION['customerId'])) {
     header('Location: ../shared/login.php');
     exit;
@@ -75,42 +88,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $firstName = explode(' ', $customer['fullName'] ?? '')[0];
 
-// ── Fetch expiry alerts: items in cart OR favourites expiring within 48h ──
-$expiryAlerts = [];
-$now   = time();
-$soon  = $now + 48 * 3600;
-
-// Cart item IDs
-$cartModel  = new Cart();
-$cart       = $cartModel->getOrCreate($customerId);
-$cartItemIds = array_map(fn($ci) => (string)$ci['itemId'], (array)($cart['cartItems'] ?? []));
-
-// Favourite item IDs
-$favModel    = new Favourite();
-$favs        = $favModel->getByCustomer($customerId);
-$favItemIds  = array_map(fn($f) => (string)$f['itemId'], $favs);
-
-$watchedIds  = array_unique(array_merge($cartItemIds, $favItemIds));
-
-$itemModel   = new Item();
-foreach ($watchedIds as $itemId) {
-    try {
-        $item = $itemModel->findById($itemId);
-        if (!$item || !isset($item['expiryDate'])) continue;
-        $expiry = $item['expiryDate']->toDateTime()->getTimestamp();
-        if ($expiry >= $now && $expiry <= $soon) {
-            $hoursLeft = ceil(($expiry - $now) / 3600);
-            $source    = in_array($itemId, $cartItemIds) ? 'cart' : 'favourites';
-            $expiryAlerts[] = [
-                'id'        => $itemId,
-                'name'      => $item['itemName'] ?? 'Item',
-                'hoursLeft' => $hoursLeft,
-                'source'    => $source,
-            ];
-        }
-    } catch (Throwable) { continue; }
-}
-$alertCount = count($expiryAlerts);
+// ── Load notifications from DB ──
+$expiryAlerts  = [];
+$notifications = [];
+$unreadCount   = 0;
+$cartCount     = 0;
+$alertCount    = 0;
+try {
+    $nm_           = new Notification();
+    // -- Read all notifications, no limit --
+    $notifications = (array)$nm_->getByCustomer($customerId);
+    $unreadCount   = (int)$nm_->getUnreadCount($customerId);
+    $alertCount    = $unreadCount;
+} catch (Throwable) {}
+try {
+    $cm_       = new Cart();
+    $ct_       = $cm_->getOrCreate($customerId);
+    $cartCount = array_sum(array_map(fn($ci)=>(int)($ci['quantity']??1),(array)($ct_['cartItems']??[])));
+} catch (Throwable) {}
 ?><!DOCTYPE html>
 <html lang="en">
 <head>
@@ -125,8 +120,11 @@ $alertCount = count($expiryAlerts);
     nav.navbar { display: flex; align-items: center; justify-content: space-between; padding: 0 40px; height: 72px; background: linear-gradient(90deg, #1a3a6b 0%, #2255a4 60%, #3a7bd5 100%); position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 16px rgba(26,58,107,0.18); }
     .nav-logo { height: 100px; }
     .nav-left { display: flex; align-items: center; gap: 16px; }
+    .nav-cart-wrap { position: relative; display: flex; align-items: center; }
     .nav-cart { width: 40px; height: 40px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.7); display: flex; align-items: center; justify-content: center; text-decoration: none; transition: background 0.2s; }
     .nav-cart:hover { background: rgba(255,255,255,0.15); }
+    .cart-badge { position: absolute; top: -5px; right: -5px; min-width: 19px; height: 19px; background: #e53935; border-radius: 50%; border: 2px solid #2255a4; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; color: #fff; pointer-events: none; }
+    .bell-badge { position: absolute; top: -3px; right: -3px; min-width: 18px; height: 18px; background: #e53935; border-radius: 50%; border: 2px solid #2255a4; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; color: #fff; pointer-events: none; }
     .nav-center { display: flex; align-items: center; gap: 40px; }
     .nav-center a { color: rgba(255,255,255,0.85); text-decoration: none; font-weight: 500; font-size: 15px; transition: color 0.2s; }
     .nav-center a:hover { color: #fff; }
@@ -195,9 +193,9 @@ $alertCount = count($expiryAlerts);
     .sidebar-footer-email { display: flex; align-items: center; justify-content: center; gap: 6px; color: rgba(255,255,255,0.7); font-size: 11px; }
     .sidebar-footer-copy { color: rgba(255,255,255,0.5); font-size: 11px; display: flex; align-items: center; justify-content: center; gap: 6px; flex-wrap: wrap; }
 
-    .main { flex: 1; padding: 40px 48px; background: #fff; overflow-y: auto; }
-    .dashboard-grid { display: grid; grid-template-columns: 1fr 380px; gap: 32px; align-items: start; }
-    .profile-col { display: flex; flex-direction: column; }
+    .main { flex: 1; padding: 36px 40px; background: #fafdff; overflow-y: auto; min-height: calc(100vh - 72px); }
+    .dashboard-grid { display: grid; grid-template-columns: 1fr 340px; gap: 28px; align-items: start; }
+    .profile-col { display: flex; flex-direction: column; background: #fff; border-radius: 20px; border: 1.5px solid #e0eaf5; padding: 32px 36px; box-shadow: 0 2px 12px rgba(26,58,107,0.06); }
     .notif-col { display: flex; flex-direction: column; }
 
     /* Notification center panel */
@@ -208,7 +206,7 @@ $alertCount = count($expiryAlerts);
     .notif-count-badge.zero { background: #e0eaf5; color: #8a9ab5; }
     .mark-read-btn { font-size: 12px; color: #2255a4; background: none; border: none; cursor: pointer; font-family: 'Playfair Display', serif; font-weight: 600; padding: 0; transition: color 0.2s; }
     .mark-read-btn:hover { color: #1a3a6b; }
-    .notif-panel-body { max-height: 520px; overflow-y: auto; }
+    .notif-panel-body { max-height: calc(100vh - 220px); overflow-y: auto; }
     .notif-panel-body::-webkit-scrollbar { width: 4px; }
     .notif-panel-body::-webkit-scrollbar-track { background: transparent; }
     .notif-panel-body::-webkit-scrollbar-thumb { background: #c8d8ee; border-radius: 4px; }
@@ -224,18 +222,33 @@ $alertCount = count($expiryAlerts);
     .notif-card-icon.expiry svg { stroke: #e07a1a; }
     .notif-card-icon.order svg { stroke: #1a6b3a; }
     .notif-card-body { flex: 1; min-width: 0; }
-    .notif-card-title { font-size: 13px; font-weight: 700; color: #1a3a6b; font-family: 'Playfair Display', serif; margin-bottom: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .notif-card-title { font-size: 13px; font-weight: 700; color: #1a3a6b; font-family: 'Playfair Display', serif; margin-bottom: 4px; line-height: 1.45; }
     .notif-card-sub { font-size: 12px; color: #7a8fa8; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
     .tag { border-radius: 50px; padding: 2px 8px; font-size: 11px; font-weight: 700; }
     .tag-expiry { background: #fff4e6; color: #e07a1a; }
     .tag-cart { background: #e8f7ee; color: #1a6b3a; }
     .tag-fav { background: #e8f0ff; color: #2255a4; }
     .tag-order { background: #e8f7ee; color: #1a6b3a; }
-    .notif-card-time { font-size: 11px; color: #b0c4d8; margin-top: 4px; }
+    .notif-card-time { font-size: 11px; color: #b0c4d8; margin-top: 5px; }
+    .ntag { display: inline-flex; align-items: center; gap: 3px; border-radius: 50px; padding: 2px 8px; font-size: 10px; font-weight: 700; margin-right: 4px; margin-top: 4px; }
+    .ntag-expiry  { background: #fff4e6; color: #e07a1a; }
+    .ntag-cart    { background: #e8f7ee; color: #1a6b3a; }
+    .ntag-fav     { background: #e8f0ff; color: #2255a4; }
+    .ntag-order   { background: #e8f7ee; color: #1a6b3a; }
+    .ntag-cancel  { background: #fde8e8; color: #e53935; }
+    .ntag-pickup  { background: #e8f0ff; color: #2255a4; }
+    /* Urgency tier badges */
+    .ntag-red     { background: #fde8e8; color: #c0392b; border: 1px solid #f5c2c2; }
+    .ntag-orange  { background: #fff0e0; color: #c96a10; border: 1px solid #f5d9b0; }
+    .ntag-yellow  { background: #fffbe6; color: #9a7d0a; border: 1px solid #f0e2a0; }
+    /* Urgency left border on notif-card */
+    .notif-card.urgency-red    { border-left: 3px solid #e53935 !important; }
+    .notif-card.urgency-orange { border-left: 3px solid #e07a1a !important; }
+    .notif-card.urgency-yellow { border-left: 3px solid #d4ac0d !important; }
     .notif-panel-empty { padding: 40px 20px; text-align: center; color: #b0c4d8; font-size: 14px; font-family: 'Playfair Display', serif; }
     .notif-panel-empty svg { display: block; margin: 0 auto 12px; }
 
-    .profile-header { display: flex; align-items: center; gap: 16px; margin-bottom: 32px; flex-wrap: wrap; }
+    .profile-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 28px; flex-wrap: wrap; border-bottom: 1.5px solid #f0f5fc; padding-bottom: 20px; }
     .profile-title { font-size: 30px; font-weight: 700; color: #1a3a6b; font-family: 'Playfair Display', serif; }
     .header-actions { display: flex; gap: 10px; align-items: center; }
 
@@ -246,8 +259,8 @@ $alertCount = count($expiryAlerts);
     .btn-cancel { background: transparent; color: #8a9ab5; border: 2px solid #c8d8ee; border-radius: 50px; padding: 10px 22px; font-size: 15px; font-weight: 700; font-family: 'Playfair Display', serif; cursor: pointer; transition: border-color 0.2s, color 0.2s; text-decoration: none; }
     .btn-cancel:hover { border-color: #8a9ab5; color: #4a6a9a; }
 
-    .field-row { display: flex; align-items: center; margin-bottom: 32px; gap: 0; }
-    .field-label { font-size: 16px; font-weight: 700; color: #1a3a6b; min-width: 160px; font-family: 'Playfair Display', serif; }
+    .field-row { display: flex; align-items: flex-start; margin-bottom: 24px; gap: 0; }
+    .field-label { font-size: 15px; font-weight: 700; color: #1a3a6b; min-width: 155px; font-family: 'Playfair Display', serif; padding-top: 14px; }
     .field-col { flex: 1; max-width: 420px; display: flex; flex-direction: column; }
     .field-value { flex: 1; max-width: 420px; padding: 14px 22px; border-radius: 50px; border: 1.5px solid #d0ddf0; background: #fff; font-size: 15px; font-family: 'Playfair Display', serif; color: #3a5a8a; outline: none; transition: border-color 0.2s, box-shadow 0.2s; width: 100%; }
     .field-value[readonly] { background: #fff; color: #3a5a8a; cursor: default; }
@@ -272,9 +285,12 @@ $alertCount = count($expiryAlerts);
   <nav class="navbar">
     <div class="nav-left">
       <img class="nav-logo" src="../../images/Replate-white.png" alt="RePlate"/>
-      <a href="../customer/cart.php" class="nav-cart">
-        <img src="../../images/Shopping cart.png" alt="Cart" style="width:40px;height:40px;object-fit:contain;"/>
-      </a>
+      <div class="nav-cart-wrap">
+        <a href="../customer/cart.php" class="nav-cart">
+          <img src="../../images/Shopping cart.png" alt="Cart" style="width:40px;height:40px;object-fit:contain;"/>
+        </a>
+        <?php if ($cartCount > 0): ?><span class="cart-badge"><?= $cartCount ?></span><?php endif; ?>
+      </div>
     </div>
     <div class="nav-center">
       <a href="../shared/landing.php">Home Page</a>
@@ -291,38 +307,62 @@ $alertCount = count($expiryAlerts);
         <button class="nav-bell" id="bellBtn" onclick="toggleNotifDropdown()">
           <svg width="18" height="18" fill="none" stroke="#fff" stroke-width="1.8" viewBox="0 0 24 24"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
         </button>
-        <?php if ($alertCount > 0): ?>
-        <span class="bell-badge"><?= $alertCount ?></span>
-        <?php endif; ?>
+        <?php if ($unreadCount > 0): ?>
+        <span class="bell-badge" id="bellBadge"><?= $unreadCount ?></span>
+        <?php else: ?><span class="bell-badge" id="bellBadge" style="display:none">0</span><?php endif; ?>
 
         <div class="notif-dropdown" id="notifDropdown">
           <div class="notif-header">
-            <span class="notif-header-title">⏰ Expiring Soon</span>
-            <span style="font-size:12px;color:#b0c4d8;"><?= $alertCount ?> alert<?= $alertCount !== 1 ? 's' : '' ?></span>
+            <span class="notif-header-title">Notifications</span>
+            <?php if ($unreadCount > 0): ?>
+            <button class="notif-mark-all" onclick="markAllRead()" style="font-size:12px;color:#2255a4;background:none;border:none;cursor:pointer;font-family:'Playfair Display',serif;font-weight:600;">Mark all read</button>
+            <?php endif; ?>
           </div>
-          <?php if (empty($expiryAlerts)): ?>
-          <div class="notif-empty">
-            <svg width="32" height="32" fill="none" stroke="#c8d8ee" stroke-width="1.5" viewBox="0 0 24 24" style="margin:0 auto 8px;display:block;"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
-            No expiry alerts right now
+          <div style="max-height:360px;overflow-y:auto;">
+          <?php if (empty($notifications)): ?>
+          <div class="notif-empty" style="padding:28px 16px;text-align:center;color:#b0c4d8;font-size:13px;">
+            <svg width="30" height="30" fill="none" stroke="#c8d8ee" stroke-width="1.5" viewBox="0 0 24 24" style="margin:0 auto 8px;display:block;"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+            You're all caught up!
           </div>
           <?php else: ?>
-          <?php foreach ($expiryAlerts as $alert): ?>
-          <div class="notif-item">
-            <div class="notif-icon">
-              <svg width="16" height="16" fill="none" stroke="#e07a1a" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          <?php foreach (array_slice($notifications, 0, 8) as $notif_):
+            $nIsRead_ = (bool)($notif_['isRead'] ?? false);
+            $nMsg_    = htmlspecialchars($notif_['message'] ?? '');
+            $nId_     = (string)($notif_['_id'] ?? '');
+            $nType_   = $notif_['type'] ?? '';
+            $nTime_   = '';
+            try { if (!empty($notif_['createdAt'])) {
+              $ts_ = $notif_['createdAt']->toDateTime()->getTimestamp();
+              $d_  = time()-$ts_;
+              $nTime_ = $d_<60 ? 'Just now' : ($d_<3600 ? floor($d_/60).'m ago' : ($d_<86400 ? floor($d_/3600).'h ago' : date('d M',$ts_)));
+            }} catch(Throwable $e_) {}
+            $nBl_     = $nIsRead_ ? '' : 'background:#fffaf5;border-left:3px solid #e07a1a;';
+            $nIconBg_ = '#f2f4f8'; $nIconSvg_ = '';
+            if ($nType_==='expiry_alert') {
+                $rawN_    = $notif_['message'] ?? '';
+                $urg_     = str_contains($rawN_,'[red]') ? 'red' : (str_contains($rawN_,'[orange]') ? 'orange' : 'yellow');
+                $urgC_    = $urg_==='red' ? '#c0392b' : ($urg_==='orange' ? '#e07a1a' : '#d4ac0d');
+                $nIconBg_ = $urg_==='red' ? '#fde8e8' : ($urg_==='orange' ? '#fff0e0' : '#fffbe6');
+                $nIconSvg_= '<svg width="14" height="14" fill="none" stroke="' . $urgC_ . '"' . ' stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>';
+                $nBl_     = 'border-left:3px solid ' . $urgC_ . ';';
+            }
+            elseif ($nType_==='order_placed')    { $nIconBg_='#e8f7ee'; $nBl_='border-left:3px solid #1a6b3a;'; $nIconSvg_='<svg width="14" height="14" fill="none" stroke="#1a6b3a" stroke-width="2" viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><polyline points="9 12 11 14 15 10"/></svg>'; }
+            elseif ($nType_==='order_completed') { $nIconBg_='#e8f7ee'; $nBl_='border-left:3px solid #1a6b3a;'; $nIconSvg_='<svg width="14" height="14" fill="none" stroke="#1a6b3a" stroke-width="2" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>'; }
+            elseif ($nType_==='order_cancelled') { $nIconBg_='#fde8e8'; $nBl_='border-left:3px solid #e53935;'; $nIconSvg_='<svg width="14" height="14" fill="none" stroke="#e53935" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>'; }
+            elseif ($nType_==='pickup_reminder') { $nIconBg_='#e8f0ff'; $nBl_='border-left:3px solid #2255a4;'; $nIconSvg_='<svg width="14" height="14" fill="none" stroke="#2255a4" stroke-width="2" viewBox="0 0 24 24"><path d="M17.657 16.657L13.414 20.9a2 2 0 01-2.828 0l-4.243-4.243a8 8 0 1111.314 0z"/><circle cx="12" cy="11" r="3"/></svg>'; }
+          ?>
+          <div onclick="markRead(this)" data-id="<?= $nId_ ?>" style="display:flex;align-items:flex-start;gap:10px;padding:13px 16px;border-bottom:1px solid #f5f8fc;cursor:pointer;transition:background 0.15s;<?= $nBl_ ?>">
+            <div style="width:32px;height:32px;border-radius:50%;background:<?= $nIconBg_ ?>;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px;"><?= $nIconSvg_ ?></div>
+            <div style="flex:1;min-width:0;">
+              <?php $nClean_ = trim(preg_replace('/\[(?:red|orange|yellow|pickup|completed|cancelled)\]\s*/', '', $nMsg_)); ?>
+              <p style="font-size:12.5px;font-weight:<?= $nIsRead_?'500':'700' ?>;color:#1a3a6b;font-family:'Playfair Display',serif;margin-bottom:2px;line-height:1.4;"><?= htmlspecialchars($nClean_) ?></p>
+              <span style="font-size:11px;color:#b0c4d8;"><?= $nTime_ ?></span>
             </div>
-            <div class="notif-text">
-              <p class="notif-name"><?= htmlspecialchars($alert['name']) ?></p>
-              <div class="notif-meta">
-                <span class="notif-hours">⏳ <?= $alert['hoursLeft'] ?>h left</span>
-                <span class="notif-source-tag <?= $alert['source'] === 'cart' ? 'cart' : '' ?>">
-                  <?= $alert['source'] === 'cart' ? '🛒 Cart' : '♥ Favourites' ?>
-                </span>
-              </div>
-            </div>
+            <?php if (!$nIsRead_): ?><div class="unread-dot" style="width:7px;height:7px;background:#e07a1a;border-radius:50%;flex-shrink:0;margin-top:4px;"></div><?php endif; ?>
           </div>
           <?php endforeach; ?>
           <?php endif; ?>
+          </div>
         </div>
       </div>
       <a href="customer-profile.php" class="nav-avatar">
@@ -348,10 +388,7 @@ $alertCount = count($expiryAlerts);
           <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/></svg>
           Orders
         </a>
-        <a href="#" class="sidebar-link">
-          <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
-          Notification
-        </a>
+      
         <a href="contact.php" class="sidebar-link">
           <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
           Contact Us
@@ -512,36 +549,94 @@ $alertCount = count($expiryAlerts);
               <div class="notif-panel-title">
                 <svg width="18" height="18" fill="none" stroke="#1a3a6b" stroke-width="2" viewBox="0 0 24 24"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
                 Notification Center
-                <span class="notif-count-badge <?= $alertCount === 0 ? 'zero' : '' ?>"><?= $alertCount ?></span>
+                <span class="notif-count-badge <?= $unreadCount === 0 ? 'zero' : '' ?>" id="panelBadge"><?= $unreadCount ?></span>
               </div>
-              <?php if ($alertCount > 0): ?>
+              <?php if ($unreadCount > 0): ?>
               <button class="mark-read-btn" onclick="markAllRead()">Mark all read</button>
               <?php endif; ?>
             </div>
 
             <div class="notif-panel-body" id="notifPanelBody">
-              <?php if (empty($expiryAlerts)): ?>
+              <?php if (empty($notifications)): ?>
               <div class="notif-panel-empty">
                 <svg width="40" height="40" fill="none" stroke="#c8d8ee" stroke-width="1.5" viewBox="0 0 24 24"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
                 You're all caught up!<br>
-                <span style="font-size:12px;">Items expiring within 48h will appear here</span>
+                <span style="font-size:12px;">Expiry alerts and order updates appear here</span>
               </div>
               <?php else: ?>
-              <?php foreach ($expiryAlerts as $i => $alert): ?>
-              <div class="notif-card unread" id="nc-<?= $i ?>">
-                <div class="notif-card-icon expiry">
-                  <svg width="16" height="16" fill="none" stroke="#e07a1a" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              <?php foreach ($notifications as $notif_p):
+                $npRead_  = (bool)($notif_p['isRead'] ?? false);
+                $npMsg_   = htmlspecialchars($notif_p['message'] ?? '');
+                $npId_    = (string)($notif_p['_id'] ?? '');
+                $npType_  = $notif_p['type'] ?? '';
+                $npTime_  = '';
+                try { if (!empty($notif_p['createdAt'])) {
+                  $ts_ = $notif_p['createdAt']->toDateTime()->getTimestamp();
+                  $d_  = time()-$ts_;
+                  $npTime_ = $d_<60 ? 'Just now' : ($d_<3600 ? floor($d_/60).'m ago' : ($d_<86400 ? floor($d_/3600).'h ago' : date('d M',$ts_)));
+                }} catch(Throwable $e_) {}
+                // Icon per type
+                $npIconBg_  = '#f2f4f8'; $npIconSvg_ = '';
+                $npTags_    = '';
+                if ($npType_ === 'expiry_alert') {
+                    $rawMsg_   = $notif_p['message'] ?? '';
+                    // Detect urgency tier from encoded tag [red/orange/yellow]
+                    $urgency_  = 'yellow';
+                    if (str_contains($rawMsg_, '[red]'))    $urgency_ = 'red';
+                    elseif (str_contains($rawMsg_, '[orange]')) $urgency_ = 'orange';
+                    // Icon color per urgency
+                    $urgencyColor_ = $urgency_==='red' ? '#c0392b' : ($urgency_==='orange' ? '#e07a1a' : '#d4ac0d');
+                    $npIconBg_  = $urgency_==='red' ? '#fde8e8' : ($urgency_==='orange' ? '#fff0e0' : '#fffbe6');
+                    $npIconSvg_ = '<svg width="15" height="15" fill="none" stroke="' . $urgencyColor_ . '" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>';
+                    // Source tag
+                    $srcTag_ = '';
+                    if (str_contains($rawMsg_, '(Cart)'))       $srcTag_ = '<span class="ntag ntag-cart"> Cart</span>';
+                    elseif (str_contains($rawMsg_, '(Favourites)')) $srcTag_ = '<span class="ntag ntag-fav"> Favourites</span>';
+                    // Time tag — parse 'Xh' or 'X days' from message
+                    preg_match('/expires in ([^!]+)!/', $rawMsg_, $m_);
+                    $timeTag_ = !empty($m_[1]) ? '<span class="ntag ntag-' . $urgency_ . '"> ' . trim($m_[1]) . '</span>' : '';
+                    $npTags_  = $timeTag_ . $srcTag_;
+                    // Override border-left color class
+                    $npBorderLeft_ = 'border-left:3px solid ' . $urgencyColor_ . ';';
+                } elseif ($npType_ === 'order_placed') {
+                    $npIconBg_  = '#e8f7ee';
+                    $npIconSvg_ = '<svg width="15" height="15" fill="none" stroke="#1a6b3a" stroke-width="2" viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><polyline points="9 12 11 14 15 10"/></svg>';
+                    $npTags_   = '<span class="ntag ntag-order">✓ Order placed</span>';
+                    $npBorderLeft_ = 'border-left:3px solid #1a6b3a;';
+                } elseif ($npType_ === 'order_completed') {
+                    $npIconBg_  = '#e8f7ee';
+                    $npIconSvg_ = '<svg width="15" height="15" fill="none" stroke="#1a6b3a" stroke-width="2" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>';
+                    $npTags_   = '<span class="ntag ntag-order">Picked up</span>';
+                    $npBorderLeft_ = 'border-left:3px solid #1a6b3a;';
+                } elseif ($npType_ === 'order_cancelled') {
+                    $npIconBg_  = '#fde8e8';
+                    $npIconSvg_ = '<svg width="15" height="15" fill="none" stroke="#e53935" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>';
+                    $npTags_   = '<span class="ntag ntag-cancel">✕ Cancelled</span>';
+                    $npBorderLeft_ = 'border-left:3px solid #e53935;';
+                } elseif ($npType_ === 'pickup_reminder') {
+                    $npIconBg_  = '#e8f0ff';
+                    $npIconSvg_ = '<svg width="15" height="15" fill="none" stroke="#2255a4" stroke-width="2" viewBox="0 0 24 24"><path d="M17.657 16.657L13.414 20.9a2 2 0 01-2.828 0l-4.243-4.243a8 8 0 1111.314 0z"/><circle cx="12" cy="11" r="3"/></svg>';
+                    $npTags_   = '<span class="ntag ntag-pickup">📍 Pickup today</span>';
+                    $npBorderLeft_ = 'border-left:3px solid #2255a4;';
+                }
+                $npBorderLeft_ = $npRead_ ? '' : 'border-left:3px solid #e07a1a;';
+              ?>
+              <div class="notif-card <?= $npRead_ ? '' : 'unread' ?>" data-id="<?= $npId_ ?>" onclick="markRead(this)" style="<?= $npBorderLeft_ ?>">
+                <div class="notif-card-icon" style="background:<?= $npIconBg_ ?>;width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px;">
+                  <?= $npIconSvg_ ?>
                 </div>
                 <div class="notif-card-body">
-                  <p class="notif-card-title"><?= htmlspecialchars($alert['name']) ?></p>
-                  <div class="notif-card-sub">
-                    <span class="tag tag-expiry">⏳ <?= $alert['hoursLeft'] ?>h left</span>
-                    <span class="tag <?= $alert['source'] === 'cart' ? 'tag-cart' : 'tag-fav' ?>">
-                      <?= $alert['source'] === 'cart' ? '🛒 In Cart' : '♥ Favourited' ?>
-                    </span>
-                  </div>
-                  <p class="notif-card-time">Expiring soon — pick it up before it's gone</p>
+                  <?php
+                    // Strip internal routing tags from visible message
+                    $npClean_ = preg_replace('/\[(?:red|orange|yellow|pickup|completed|cancelled)\]\s*/', '', $npMsg_);
+                   
+                    $npClean_ = trim($npClean_);
+                  ?>
+                  <p class="notif-card-title" style="font-weight:<?= $npRead_?'600':'700' ?>;"><?= htmlspecialchars($npClean_) ?></p>
+                  <div style="margin-top:4px;"><?= $npTags_ ?></div>
+                  <p class="notif-card-time"><?= $npTime_ ?></p>
                 </div>
+                <?php if (!$npRead_): ?><div class="unread-dot" style="width:8px;height:8px;background:#e07a1a;border-radius:50%;flex-shrink:0;margin-top:5px;"></div><?php endif; ?>
               </div>
               <?php endforeach; ?>
               <?php endif; ?>
@@ -646,12 +741,57 @@ $alertCount = count($expiryAlerts);
       document.getElementById('notifDropdown').classList.toggle('open');
     }
 
+    // ── Mark single notification read ──
+    function markRead(el) {
+      if (!el.dataset.id) return;
+      // Bell dropdown item
+      el.style.background = '';
+      el.style.borderLeft = '';
+      const dot = el.querySelector('.unread-dot');
+      if (dot) dot.remove();
+      // Panel item
+      el.classList.remove('unread');
+      const p = el.querySelector('.notif-card-title');
+      if (p) p.style.fontWeight = '600';
+      updateBadges(-1);
+      fetch('customer-profile.php', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json','Accept':'application/json'},
+        body: JSON.stringify({action:'mark_read', notifId: el.dataset.id})
+      }).catch(()=>{});
+    }
+
     // ── Mark all read ──
     function markAllRead() {
-      document.querySelectorAll('.notif-card.unread').forEach(c => c.classList.remove('unread'));
-      document.querySelector('.mark-read-btn')?.remove();
-      const badge = document.querySelector('.notif-count-badge');
-      if (badge) { badge.textContent = '0'; badge.classList.add('zero'); }
+      // Bell items
+      document.querySelectorAll('#notifDropdown [data-id]').forEach(el => {
+        el.style.background = ''; el.style.borderLeft = '';
+        const dot = el.querySelector('.unread-dot'); if (dot) dot.remove();
+      });
+      // Panel items
+      document.querySelectorAll('.notif-card.unread').forEach(el => {
+        el.classList.remove('unread');
+        const dot = el.querySelector('.unread-dot'); if (dot) dot.remove();
+        const p = el.querySelector('.notif-card-title'); if (p) p.style.fontWeight='600';
+      });
+      const bellBadge = document.getElementById('bellBadge');
+      if (bellBadge) bellBadge.style.display = 'none';
+      document.querySelector('.notif-mark-all')?.style.setProperty('display','none');
+      document.querySelector('.mark-read-btn')?.style.setProperty('display','none');
+      const panelBadge = document.getElementById('panelBadge');
+      if (panelBadge) { panelBadge.textContent='0'; panelBadge.classList.add('zero'); }
+      fetch('customer-profile.php', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json','Accept':'application/json'},
+        body: JSON.stringify({action:'mark_all_read'})
+      }).catch(()=>{});
+    }
+
+    function updateBadges(delta) {
+      const b1 = document.getElementById('bellBadge');
+      if (b1) { const n=Math.max(0,(parseInt(b1.textContent)||0)+delta); b1.textContent=n; b1.style.display=n===0?'none':'flex'; }
+      const b2 = document.getElementById('panelBadge');
+      if (b2) { const n=Math.max(0,(parseInt(b2.textContent)||0)+delta); b2.textContent=n; b2.classList.toggle('zero',n===0); }
     }
 
     // ── Password toggle ──

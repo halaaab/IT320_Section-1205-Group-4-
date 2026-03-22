@@ -7,32 +7,117 @@ require_once '../../back-end/models/Item.php';
 require_once '../../back-end/models/Provider.php';
 require_once '../../back-end/models/Favourite.php';
 require_once '../../back-end/models/Cart.php';
-require_once '../../back-end/models/Item.php';
+require_once '../../back-end/models/Notification.php';
 
+// ── AJAX handlers (JSON requests only) ──
+if ($_SERVER['REQUEST_METHOD'] === 'POST' &&
+    str_contains($_SERVER['HTTP_ACCEPT'] ?? '', 'application/json')) {
+    header('Content-Type: application/json');
+    if (empty($_SESSION['customerId'])) {
+        echo json_encode(['success' => false, 'error' => 'unauthenticated']); exit;
+    }
+    $input  = json_decode(file_get_contents('php://input'), true);
+    $ajaxAction = $input['action'] ?? 'toggle_fav';
+    $cid    = $_SESSION['customerId'];
+
+    // ── Toggle favourite ──
+    if ($ajaxAction === 'toggle_fav') {
+        $itemId = trim($input['itemId'] ?? '');
+        if (!$itemId) { echo json_encode(['success' => false, 'error' => 'missing itemId']); exit; }
+        $favModel = new Favourite();
+        if ($favModel->isSaved($cid, $itemId)) {
+            $favModel->remove($cid, $itemId);
+            echo json_encode(['success' => true, 'action' => 'removed', 'liked' => false]);
+        } else {
+            $favModel->add($cid, $itemId);
+            echo json_encode(['success' => true, 'action' => 'added', 'liked' => true]);
+        }
+        exit;
+    }
+
+    // ── Mark one notification as read ──
+    if ($ajaxAction === 'mark_read') {
+        $notifId = trim($input['notifId'] ?? '');
+        if ($notifId) (new Notification())->markRead($notifId);
+        echo json_encode(['success' => true]); exit;
+    }
+
+    // ── Mark all notifications as read ──
+    if ($ajaxAction === 'mark_all_read') {
+        (new Notification())->markAllRead($cid);
+        echo json_encode(['success' => true]); exit;
+    }
+
+    echo json_encode(['success' => false, 'error' => 'unknown action']); exit;
+}
 $categoryModel = new Category();
 $itemModel     = new Item();
 $providerModel = new Provider();
 
+// Load homepage data without hard limits
 $categories = $categoryModel->getAll();
-$items      = $itemModel->getAvailable(['sort' => ['createdAt' => -1], 'limit' => 20]);
-$providers  = $providerModel->findAll([], ['limit' => 8]);
+$providers  = $providerModel->findAll();
+$allItems   = $itemModel->getAvailable();
+
+// Split items into selling and donation items
+$sellingItems  = [];
+$donationItems = [];
+
+foreach ($allItems as $item) {
+    $listingType = strtolower(trim($item['listingType'] ?? ''));
+
+    if ($listingType === 'donate') {
+        $donationItems[] = $item;
+    } else {
+        $sellingItems[] = $item;
+    }
+}
+
+// Sort selling items by lowest price, then append donations after them
+usort($sellingItems, function ($a, $b) {
+    return (float)($a['price'] ?? 0) <=> (float)($b['price'] ?? 0);
+});
+
+$items = array_merge($sellingItems, $donationItems);
+
+$providerMap = [];
+foreach ($providers as $provider) {
+    $providerMap[(string)$provider['_id']] = $provider;
+}
+
+$categoryMap = [];
+foreach ($categories as $category) {
+    $categoryMap[(string)$category['_id']] = $category;
+}
 
 $isLoggedIn = !empty($_SESSION['customerId']);
 $userName   = $_SESSION['userName'] ?? '';
 
-// Expiry alerts for logged-in customer
-$expiryAlerts = [];
-$alertCount   = 0;
+// Cart count + notifications for logged-in customer
+$cartCount     = 0;
+$favItemIds    = [];
+$notifications = [];
+$unreadCount   = 0;
 if ($isLoggedIn) {
     $customerId  = $_SESSION['customerId'];
     $now  = time();
-    $soon = $now + 48 * 3600;
+
+    // Cart
     $cartModel   = new Cart();
     $cart        = $cartModel->getOrCreate($customerId);
-    $cartItemIds = array_map(fn($ci) => (string)$ci['itemId'], (array)($cart['cartItems'] ?? []));
-    $favModel    = new Favourite();
-    $favs        = $favModel->getByCustomer($customerId);
-    $favItemIds  = array_map(fn($f) => (string)$f['itemId'], $favs);
+    $cartItems   = (array)($cart['cartItems'] ?? []);
+    $cartCount   = array_sum(array_map(fn($ci) => (int)($ci['quantity'] ?? 1), $cartItems));
+    $cartItemIds = array_map(fn($ci) => (string)$ci['itemId'], $cartItems);
+
+    // Favourites
+    $favModel   = new Favourite();
+    $favs       = $favModel->getByCustomer($customerId);
+    $favItemIds = array_map(fn($f) => (string)$f['itemId'], $favs);
+
+    // -- Write expiry_alert notifications for ALL items in cart/favs with a future expiry --
+    // Three urgency tiers: red (<3 days), orange (3-7 days), yellow (>7 days)
+    // Re-fires if the urgency level escalates since the last alert
+    $notifModel  = new Notification();
     $watchedIds  = array_unique(array_merge($cartItemIds, $favItemIds));
     $itemModel2  = new Item();
     foreach ($watchedIds as $wid) {
@@ -40,13 +125,50 @@ if ($isLoggedIn) {
             $witem = $itemModel2->findById($wid);
             if (!$witem || !isset($witem['expiryDate'])) continue;
             $expiry = $witem['expiryDate']->toDateTime()->getTimestamp();
-            if ($expiry >= $now && $expiry <= $soon) {
-                $hoursLeft = ceil(($expiry - $now) / 3600);
-                $expiryAlerts[] = ['name' => $witem['itemName'] ?? 'Item', 'hoursLeft' => $hoursLeft, 'source' => in_array($wid, $cartItemIds) ? 'cart' : 'favourites'];
+            if ($expiry < $now) continue; // already expired, skip
+            $daysLeft = ($expiry - $now) / 86400;
+            // Determine urgency tier
+            if ($daysLeft < 3)       { $urgency = 'red';     }
+            elseif ($daysLeft < 7)   { $urgency = 'orange'; }
+            else                     { $urgency = 'yellow';  }
+            // Format time string
+            $hoursLeft = (int)ceil($expiry - $now) / 3600;
+            $timeStr   = $daysLeft < 2 ? ceil($hoursLeft) . 'h' : ceil($daysLeft) . ' days';
+          $inCart = in_array($wid, $cartItemIds, true);
+$inFav  = in_array($wid, $favItemIds, true);
+
+if ($inCart && $inFav) {
+    $lbl = 'Cart & Favourites';
+} elseif ($inCart) {
+    $lbl = 'Cart';
+} else {
+    $lbl = 'Favourites';
+}
+            // Check if we already sent this urgency level for this item (avoid spam)
+            // We use the urgency word in the message to detect if tier changed
+            $recentAlert = $notifModel->findAll([
+                'customerId'    => Notification::toObjectId($customerId),
+                'type'          => 'expiry_alert',
+                'relatedItemId' => Notification::toObjectId($wid),
+                'createdAt'     => ['$gte' => new MongoDB\BSON\UTCDateTime(($now - 86400) * 1000)],
+            ], ['sort' => ['createdAt' => -1], 'limit' => 1]);
+            // Only skip if last alert was the SAME urgency tier (re-fire when it escalates)
+            if (!empty($recentAlert)) {
+                $lastMsg = $recentAlert[0]['message'] ?? '';
+                if (str_contains($lastMsg, '[' . $urgency . ']')) continue;
             }
+           $notifModel->create(
+    $customerId,
+    'expiry_alert',
+    '[' . $urgency . '] ' . $witem['itemName'] . ' (' . $lbl . ') expires in ' . $timeStr . '!',
+    ['itemId' => $wid]
+);
         } catch (Throwable) { continue; }
     }
-    $alertCount = count($expiryAlerts);
+
+    // -- Read all notifications, no limit --
+    $notifications = (array)$notifModel->getByCustomer($customerId);
+    $unreadCount   = $notifModel->getUnreadCount($customerId);
 }
 ?>
 
@@ -90,6 +212,8 @@ if ($isLoggedIn) {
       height: 100px;
     }
 
+    .nav-cart-wrap { position: relative; display: flex; align-items: center; }
+
     .nav-cart {
       width: 40px;
       height: 40px;
@@ -104,6 +228,32 @@ if ($isLoggedIn) {
     }
 
     .nav-cart:hover { background: rgba(255, 255, 255, 0.15); }
+
+    .cart-badge {
+      position: absolute;
+      top: -5px;
+      right: -5px;
+      min-width: 19px;
+      height: 19px;
+      background: #e53935;
+      border-radius: 50%;
+      border: 2px solid #2255a4;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      font-weight: 700;
+      color: #fff;
+      font-family: 'DM Sans', sans-serif;
+      pointer-events: none;
+      animation: cartPop 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+
+    @keyframes cartPop {
+      0%   { transform: scale(0); opacity: 0; }
+      70%  { transform: scale(1.25); opacity: 1; }
+      100% { transform: scale(1); opacity: 1; }
+    }
 
     .nav-avatar svg { stroke: #fff; }
 
@@ -224,20 +374,39 @@ if ($isLoggedIn) {
     .nav-bell-wrap { position: relative; }
     .nav-bell { width: 38px; height: 38px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.6); display: flex; align-items: center; justify-content: center; cursor: pointer; background: none; transition: background 0.2s; }
     .nav-bell:hover { background: rgba(255,255,255,0.15); }
-    .bell-badge { position: absolute; top: -3px; right: -3px; width: 18px; height: 18px; background: #e07a1a; border-radius: 50%; border: 2px solid transparent; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; color: #fff; pointer-events: none; }
-    .notif-dropdown { display: none; position: absolute; top: 48px; right: 0; width: 320px; background: #fff; border-radius: 16px; box-shadow: 0 8px 40px rgba(26,58,107,0.18); border: 1.5px solid #e0eaf5; z-index: 9999; overflow: hidden; }
-    .notif-dropdown.open { display: block; }
-    .notif-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 18px 12px; border-bottom: 1.5px solid #f0f5fc; }
+    .bell-badge { position: absolute; top: -3px; right: -3px; min-width: 18px; height: 18px; background: #e53935; border-radius: 50%; border: 2px solid #2255a4; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; color: #fff; pointer-events: none; font-family: 'DM Sans', sans-serif; animation: cartPop 0.4s cubic-bezier(0.175,0.885,0.32,1.275); }
+    .notif-dropdown { display: none; position: absolute; top: 50px; right: 0; width: 360px; background: #fff; border-radius: 20px; box-shadow: 0 12px 48px rgba(26,58,107,0.18); border: 1.5px solid #e0eaf5; z-index: 9999; overflow: hidden; }
+    .notif-dropdown.open { display: block; animation: floatUp 0.2s ease; }
+    .notif-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 18px 12px; border-bottom: 1.5px solid #f0f5fc; background: #fff; }
     .notif-header-title { font-size: 15px; font-weight: 700; color: #1a3a6b; font-family: 'Playfair Display', serif; }
-    .notif-empty { padding: 28px 18px; text-align: center; color: #b0c4d8; font-size: 14px; }
-    .notif-item { display: flex; align-items: flex-start; gap: 12px; padding: 14px 18px; border-bottom: 1px solid #f5f8fc; transition: background 0.15s; }
+    .notif-mark-all { font-size: 12px; color: #2255a4; background: none; border: none; cursor: pointer; font-family: 'Playfair Display', serif; font-weight: 600; padding: 0; transition: color 0.2s; }
+    .notif-mark-all:hover { color: #1a3a6b; }
+    .notif-list { max-height: 420px; overflow-y: auto; scrollbar-width: thin; scrollbar-color: #c8d8ee transparent; }
+    .notif-empty { padding: 36px 18px; text-align: center; color: #b0c4d8; font-size: 14px; }
+    .notif-item { display: flex; align-items: flex-start; gap: 12px; padding: 14px 18px; border-bottom: 1px solid #f5f8fc; transition: background 0.15s; cursor: pointer; position: relative; }
     .notif-item:last-child { border-bottom: none; }
     .notif-item:hover { background: #f8fbff; }
-    .notif-icon { width: 36px; height: 36px; border-radius: 50%; background: #fff4e6; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 2px; }
-    .notif-meta { font-size: 12px; color: #7a8fa8; display: flex; align-items: center; gap: 6px; margin-top: 3px; }
-    .notif-source-tag { background: #e8f0ff; color: #2255a4; border-radius: 50px; padding: 2px 8px; font-size: 11px; font-weight: 700; }
-    .notif-source-tag.cart { background: #e8f7ee; color: #1a6b3a; }
-    .notif-hours { color: #e07a1a; font-weight: 700; }
+    .notif-item.unread { background: #fffaf5; border-left: 3px solid #e07a1a; }
+    .notif-item.unread:hover { background: #fff4e8; }
+    .notif-icon { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 2px; }
+    .notif-icon.expiry          { background: #fff4e6; }
+    .notif-icon.expiry-red      { background: #fde8e8; }
+    .notif-icon.expiry-orange   { background: #fff0e0; }
+    .notif-icon.expiry-yellow   { background: #fffbe6; }
+    .notif-icon.order           { background: #e8f7ee; }
+    .notif-icon.pickup          { background: #e8f0ff; }
+    .notif-icon.default         { background: #f2f4f8; }
+    .notif-item.urgency-red     { border-left: 3px solid #c0392b; background: #fff8f8; }
+    .notif-item.urgency-orange  { border-left: 3px solid #e07a1a; background: #fffaf5; }
+    .notif-item.urgency-yellow  { border-left: 3px solid #d4ac0d; background: #fffef0; }
+    .notif-body { flex: 1; min-width: 0; }
+    .notif-msg { font-size: 13px; font-weight: 600; color: #1a3a6b; font-family: 'Playfair Display', serif; margin-bottom: 4px; line-height: 1.4; }
+    .notif-item.unread .notif-msg { font-weight: 700; }
+    .notif-time { font-size: 11px; color: #b0c4d8; }
+    .notif-unread-dot { width: 8px; height: 8px; background: #e07a1a; border-radius: 50%; flex-shrink: 0; margin-top: 6px; }
+    .notif-footer { padding: 12px 18px; border-top: 1.5px solid #f0f5fc; text-align: center; }
+    .notif-footer a { font-size: 13px; color: #2255a4; text-decoration: none; font-weight: 600; font-family: 'Playfair Display', serif; }
+    .notif-footer a:hover { color: #1a3a6b; }
 
     /* ── HERO ── */
     .hero {
@@ -471,7 +640,7 @@ if ($isLoggedIn) {
 
     .product-img-box {
       width: 100%;
-      height: 130px;
+      height: 200px;
       background: #d8e6f5;
       border-radius: 14px;
       margin-bottom: 16px;
@@ -533,9 +702,8 @@ if ($isLoggedIn) {
     .sar-icon {
       width: 22px;
       height: 22px;
-      background: #c8d8ee;
-      border-radius: 4px;
       flex-shrink: 0;
+      object-fit: contain;
     }
 
     .product-desc {
@@ -857,9 +1025,16 @@ if ($isLoggedIn) {
   <nav>
     <div class="nav-left">
       <img class="nav-logo" src="../../images/Replate-white.png" alt="RePlate Logo" />
-      <a href="CART_LINK_HERE" class="nav-cart">
-        <img src="../../images/Shopping cart.png" alt="Cart" style="width:40px;height:40px;object-fit:contain;" />
-      </a>
+      <div class="nav-cart-wrap">
+        <a href="../customer/cart.php" class="nav-cart">
+          <img src="../../images/Shopping cart.png" alt="Cart" style="width:40px;height:40px;object-fit:contain;" />
+        </a>
+        <?php if ($isLoggedIn && $cartCount > 0): ?>
+        <span class="cart-badge" id="cartBadge"><?= $cartCount ?></span>
+        <?php else: ?>
+        <span class="cart-badge" id="cartBadge" style="display:none;">0</span>
+        <?php endif; ?>
+      </div>
     </div>
 
     <div class="nav-center">
@@ -886,37 +1061,77 @@ if ($isLoggedIn) {
         <button class="nav-bell" onclick="toggleNotifDropdown()">
           <svg width="18" height="18" fill="none" stroke="#fff" stroke-width="1.8" viewBox="0 0 24 24"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
         </button>
-        <?php if ($alertCount > 0): ?>
-        <span class="bell-badge"><?= $alertCount ?></span>
+        <?php if ($unreadCount > 0): ?>
+        <span class="bell-badge" id="bellBadge"><?= $unreadCount ?></span>
         <?php endif; ?>
         <div class="notif-dropdown" id="notifDropdown">
           <div class="notif-header">
-            <span class="notif-header-title">⏰ Expiring Soon</span>
-            <span style="font-size:12px;color:#b0c4d8;"><?= $alertCount ?> alert<?= $alertCount !== 1 ? 's' : '' ?></span>
+            <span class="notif-header-title">Notifications</span>
+            <?php if ($unreadCount > 0): ?>
+            <button class="notif-mark-all" onclick="markAllRead()">Mark all read</button>
+            <?php endif; ?>
           </div>
-          <?php if (empty($expiryAlerts)): ?>
+          <div class="notif-list">
+          <?php if (empty($notifications)): ?>
           <div class="notif-empty">
-            <svg width="32" height="32" fill="none" stroke="#c8d8ee" stroke-width="1.5" viewBox="0 0 24 24" style="margin:0 auto 8px;display:block;"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
-            No expiry alerts right now
+            <svg width="32" height="32" fill="none" stroke="#c8d8ee" stroke-width="1.5" viewBox="0 0 24 24" style="margin:0 auto 10px;display:block;"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+            You're all caught up!
           </div>
           <?php else: ?>
-          <?php foreach ($expiryAlerts as $alert): ?>
-          <div class="notif-item">
-            <div class="notif-icon">
-              <svg width="16" height="16" fill="none" stroke="#e07a1a" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          <?php foreach ($notifications as $notif):
+            $nid      = (string)($notif['_id'] ?? '');
+            $ntype    = $notif['type'] ?? 'default';
+            $nmsg = $notif['message'] ?? '';
+            $nread    = (bool)($notif['isRead'] ?? false);
+            $ntime    = '';
+            if (!empty($notif['createdAt'])) {
+                $ts = $notif['createdAt'] instanceof MongoDB\BSON\UTCDateTime
+                    ? $notif['createdAt']->toDateTime()->getTimestamp()
+                    : strtotime((string)$notif['createdAt']);
+                $diff = time() - $ts;
+                if ($diff < 60)        $ntime = 'Just now';
+                elseif ($diff < 3600)  $ntime = floor($diff/60) . 'm ago';
+                elseif ($diff < 86400) $ntime = floor($diff/3600) . 'h ago';
+                else                   $ntime = date('d M', $ts);
+            }
+            // Icon per type
+            $iconClass = 'default'; $iconSvg = '';
+            if ($ntype === 'expiry_alert') {
+                $rawM_ = $notif['message'] ?? '';
+                $urg_  = str_contains($rawM_, '[red]') ? 'red' : (str_contains($rawM_, '[orange]') ? 'orange' : 'yellow');
+                $urgC_ = $urg_==='red' ? '#c0392b' : ($urg_==='orange' ? '#e07a1a' : '#d4ac0d');
+                $iconClass = 'expiry-' . $urg_;
+                $iconSvg = '<svg width="16" height="16" fill="none" stroke="' . $urgC_ . '" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>';
+            } elseif ($ntype === 'order_placed') {
+                $iconClass = 'order';
+                $iconSvg = '<svg width="16" height="16" fill="none" stroke="#1a6b3a" stroke-width="2" viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><polyline points="9 12 11 14 15 10"/></svg>';
+            } elseif ($ntype === 'order_completed') {
+                $iconClass = 'order';
+                $iconSvg = '<svg width="16" height="16" fill="none" stroke="#1a6b3a" stroke-width="2" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>';
+            } elseif ($ntype === 'order_cancelled') {
+                $iconClass = 'cancelled';
+                $iconSvg = '<svg width="16" height="16" fill="none" stroke="#e53935" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>';
+            } elseif ($ntype === 'pickup_reminder') {
+                $iconClass = 'pickup';
+                $iconSvg = '<svg width="16" height="16" fill="none" stroke="#2255a4" stroke-width="2" viewBox="0 0 24 24"><path d="M17.657 16.657L13.414 20.9a2 2 0 01-2.828 0l-4.243-4.243a8 8 0 1111.314 0z"/><circle cx="12" cy="11" r="3"/></svg>';
+            }
+          ?>
+          <?php $urgClass_ = $ntype==='expiry_alert' ? ' urgency-'.($urg_??'yellow') : ''; ?>
+          <div class="notif-item <?= $nread ? '' : 'unread' ?><?= $urgClass_ ?>" data-id="<?= $nid ?>" onclick="markRead(this)">
+            <div class="notif-icon <?= $iconClass ?>"><?= $iconSvg ?></div>
+            <div class="notif-body">
+              <?php $nmsgClean_ = trim(preg_replace('/\[(?:red|orange|yellow|pickup|completed|cancelled)\]\s*/', '', $nmsg)); ?>
+<p class="notif-msg"><?= htmlspecialchars($nmsgClean_) ?></p>
+              <span class="notif-time"><?= $ntime ?></span>
             </div>
-            <div>
-              <p style="font-size:14px;font-weight:700;color:#1a3a6b;font-family:'Playfair Display',serif;margin-bottom:3px;"><?= htmlspecialchars($alert['name']) ?></p>
-              <div class="notif-meta">
-                <span class="notif-hours">⏳ <?= $alert['hoursLeft'] ?>h left</span>
-                <span class="notif-source-tag <?= $alert['source'] === 'cart' ? 'cart' : '' ?>">
-                  <?= $alert['source'] === 'cart' ? '🛒 Cart' : '♥ Favourites' ?>
-                </span>
-              </div>
-            </div>
+            <?php if (!$nread): ?><div class="notif-unread-dot"></div><?php endif; ?>
           </div>
           <?php endforeach; ?>
           <?php endif; ?>
+          </div>
+          <div class="notif-footer">
+            <a href="../customer/customer-profile.php#notifications">View all notifications</a>
+          </div>
         </div>
       </div>
       <a href="../customer/customer-profile.php" class="nav-avatar">
@@ -969,24 +1184,24 @@ if ($isLoggedIn) {
     <?php if (!empty($items)): ?>
     <div class="scroll-wrapper">
       <div class="scroll-row" id="prices-row">
-        <?php foreach ($items as $item):
-          $itemName  = htmlspecialchars($item['itemName'] ?? 'Item');
-          $itemPrice = ($item['listingType'] ?? '') === 'donate'
-            ? null
-            : number_format((float)($item['price'] ?? 0), 2);
-          $itemDesc  = htmlspecialchars($item['description'] ?? '');
-          $itemId    = (string)($item['_id'] ?? '');
-          // Fetch provider name
-          try {
-            $prov = (new Provider())->findById((string)($item['providerId'] ?? ''));
-            $providerName = htmlspecialchars($prov['businessName'] ?? 'Provider');
-          } catch(Throwable) { $providerName = 'Provider'; $prov = []; }
-          // Fetch category name
-          try {
-            $cat = $categoryModel->findById((string)($item['categoryId'] ?? ''));
-            $categoryName = htmlspecialchars($cat['name'] ?? '');
-          } catch(Throwable) { $categoryName = ''; }
-        ?>
+       <?php foreach ($items as $item): ?>
+  <?php
+    $itemName  = htmlspecialchars($item['itemName'] ?? 'Item');
+    $itemPrice = ($item['listingType'] ?? '') === 'donate'
+      ? null
+      : number_format((float)($item['price'] ?? 0), 2);
+    $itemDesc  = htmlspecialchars($item['description'] ?? '');
+    $itemId    = (string)($item['_id'] ?? '');
+
+    $providerId = (string)($item['providerId'] ?? '');
+    $categoryId = (string)($item['categoryId'] ?? '');
+
+    $prov = $providerMap[$providerId] ?? [];
+    $cat  = $categoryMap[$categoryId] ?? [];
+
+    $providerName = htmlspecialchars($prov['businessName'] ?? 'Provider');
+    $categoryName = htmlspecialchars($cat['name'] ?? '');
+  ?>
         <div class="product-card">
           <div class="product-card-top">
             <div class="provider-logo-box">
@@ -999,7 +1214,7 @@ if ($isLoggedIn) {
 </div>
               <span class="provider-logo-name"><?= $providerName ?></span>
             </div>
-            <button class="heart-btn"><svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path class="heart-path" d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg></button>
+            <button class="heart-btn <?= in_array($itemId, $favItemIds) ? 'liked' : '' ?>" data-item-id="<?= $itemId ?>"><svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path class="heart-path" d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg></button>
           </div>
           <?php if ($categoryName): ?>
           <span class="category-tag"><?= $categoryName ?></span>
@@ -1020,7 +1235,7 @@ if ($isLoggedIn) {
                   <span class="product-price" style="color:#1a6b3a;">Donation</span>
                 <?php else: ?>
                   <span class="product-price"><?= $itemPrice ?></span>
-                  <div class="sar-icon"></div>
+                  <img class="sar-icon" src="../../images/SAR.png" alt="SAR" />
                 <?php endif; ?>
               </div>
             </div>
@@ -1149,13 +1364,15 @@ if ($isLoggedIn) {
       <div class="footer-brand">
     
       </div>
+           <img src="../../images/Replate-white.png" alt="Replate" style="height:80px;object-fit:contain;opacity:1;" />
       <div class="footer-divider"></div>
+    
       <div class="footer-email">
         <svg width="16" height="16" fill="none" stroke="rgba(255,255,255,0.85)" stroke-width="2" viewBox="0 0 24 24">
           <rect x="2" y="4" width="20" height="16" rx="2"/>
           <path d="M2 7l10 7 10-7"/>
         </svg>
-        <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="8ad8effae6ebfeefcaede7ebe3e6a4e9e5e7">Replate@gmail.com</a>
+        <a mailto="Replate@gmail.com">Replate@gmail.com</a>
       </div>
     </div>
     <div class="footer-bottom">
@@ -1166,9 +1383,44 @@ if ($isLoggedIn) {
   </footer>
 
   <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
-    // ── Heart toggle ──
+    // ── Heart toggle → AJAX favourite ──
+    const IS_LOGGED_IN = <?= $isLoggedIn ? 'true' : 'false' ?>;
+
     document.querySelectorAll('.heart-btn').forEach(btn => {
-      btn.addEventListener('click', () => btn.classList.toggle('liked'));
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+
+        if (!IS_LOGGED_IN) {
+          document.getElementById('authModal').style.display = 'flex';
+          return;
+        }
+
+        const itemId = btn.dataset.itemId;
+        if (!itemId) return;
+
+        // Optimistic toggle
+        btn.classList.toggle('liked');
+
+        try {
+          const res  = await fetch('landing.php', {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+            body:    JSON.stringify({ itemId })
+          });
+          const data = await res.json();
+
+          if (!data.success) {
+            // Revert if failed
+            btn.classList.toggle('liked');
+          } else {
+            // Brief pop animation
+            btn.style.transform = 'scale(1.35)';
+            setTimeout(() => { btn.style.transform = ''; }, 220);
+          }
+        } catch {
+          btn.classList.toggle('liked'); // revert on network error
+        }
+      });
     });
 
     // ── Active nav link on click ──
@@ -1228,6 +1480,50 @@ if ($isLoggedIn) {
       document.getElementById('notifDropdown').classList.toggle('open');
     }
 
+    // ── Mark single notification as read ──
+    function markRead(el) {
+      if (!el.classList.contains('unread')) return;
+      const notifId = el.dataset.id;
+      el.classList.remove('unread');
+      const dot = el.querySelector('.notif-unread-dot');
+      if (dot) dot.remove();
+      updateBellBadge(-1);
+      fetch('landing.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify({ action: 'mark_read', notifId })
+      }).catch(() => {});
+    }
+
+    // ── Mark all notifications as read ──
+    function markAllRead() {
+      const unread = document.querySelectorAll('#notifDropdown .notif-item.unread');
+      unread.forEach(el => {
+        el.classList.remove('unread');
+        const dot = el.querySelector('.notif-unread-dot');
+        if (dot) dot.remove();
+      });
+      const badge = document.getElementById('bellBadge');
+      if (badge) badge.style.display = 'none';
+      const btn = document.querySelector('.notif-mark-all');
+      if (btn) btn.style.display = 'none';
+      fetch('landing.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify({ action: 'mark_all_read' })
+      }).catch(() => {});
+    }
+
+    // ── Update bell badge count ──
+    function updateBellBadge(delta) {
+      const badge = document.getElementById('bellBadge');
+      if (!badge) return;
+      const current = parseInt(badge.textContent) || 0;
+      const next = Math.max(0, current + delta);
+      if (next === 0) { badge.style.display = 'none'; }
+      else { badge.textContent = next; badge.style.display = 'flex'; }
+    }
+
     // ── Live Search ──
     const searchInput    = document.getElementById('searchInput');
     const searchDropdown = document.getElementById('searchDropdown');
@@ -1276,7 +1572,7 @@ if ($isLoggedIn) {
           const logo = p.businessLogo
             ? `<div class="search-provider-logo"><img src="${p.businessLogo}"/></div>`
             : `<div class="search-provider-logo">${p.businessName.charAt(0).toUpperCase()}</div>`;
-          html += `<a class="search-item-row" href="../customer/providers-page.php?id=${p.id}">
+          html += `<a class="search-item-row" href="../customer/providers-page.php?providerId=${p.id}">
             ${logo}
             <div><p class="search-item-name">${hl(p.businessName,q)}</p><p class="search-item-sub">${p.category}</p></div>
           </a>`;
@@ -1294,7 +1590,7 @@ if ($isLoggedIn) {
           const thumb = item.photoUrl
             ? `<div class="search-thumb"><img src="${item.photoUrl}"/></div>`
             : '<div class="search-thumb">🍱</div>';
-          html += `<a class="search-item-row" href="../customer/item-details.php?id=${item.id}">
+          html += `<a class="search-item-row" href="../customer/item-details.php?itemId=${item.id}">
             ${thumb}
             <div><p class="search-item-name">${hl(item.name,q)}</p><p class="search-item-sub">Product</p></div>
             <span class="search-price">${item.price}</span>

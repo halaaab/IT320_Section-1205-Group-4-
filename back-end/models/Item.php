@@ -8,27 +8,39 @@ class Item extends BaseModel {
     const LISTING_TYPES = ['donate', 'sell'];
 
     // ── Create a new item ──
-    public function create(string $providerId, array $data): string {
-        $doc = [
-            'providerId'       => self::toObjectId($providerId),
-            'categoryId'       => self::toObjectId($data['categoryId']),
-            'pickupLocationId' => self::toObjectId($data['pickupLocationId']),
-            'itemName'         => $data['itemName'],
-            'description'      => $data['description'] ?? '',
-            'photoUrl'         => $data['photoUrl'] ?? '',
-            'expiryDate'       => new MongoDB\BSON\UTCDateTime(
-                                    strtotime($data['expiryDate']) * 1000
-                                  ),
-            'listingType'      => $data['listingType'],  // "donate" | "sell"
-            'price'            => $data['listingType'] === 'donate'
-                                    ? 0
-                                    : (float) $data['price'],
-            'quantity'         => (int) $data['quantity'],
-            'pickupTimes'      => $data['pickupTimes'],  // array of strings
-            'isAvailable'      => true,
-        ];
-        return $this->insertOne($doc);
+  public function create(string $providerId, array $data): string {
+
+    // ── VALIDATION ──
+    if (empty($data['description'])) {
+        throw new Exception("Description is required.");
     }
+
+    if (empty($data['photoUrl'])) {
+        throw new Exception("Photo is required.");
+    }
+
+    $doc = [
+        'providerId'       => self::toObjectId($providerId),
+        'categoryId'       => self::toObjectId($data['categoryId']),
+        'pickupLocationId' => self::toObjectId($data['pickupLocationId']),
+        'itemName'         => $data['itemName'],
+        'description'      => $data['description'],   // now required
+        'photoUrl'         => $data['photoUrl'],      // now required
+        'expiryDate'       => new MongoDB\BSON\UTCDateTime(
+                                strtotime($data['expiryDate']) * 1000
+                              ),
+        'pickupDate' => new MongoDB\BSON\UTCDateTime(strtotime($data['pickupDate']) * 1000),
+        'listingType'      => $data['listingType'],
+        'price'            => $data['listingType'] === 'donate'
+                                ? 0
+                                : (float) $data['price'],
+        'quantity'         => (int) $data['quantity'],
+        'pickupTimes'      => $data['pickupTimes'],
+        'isAvailable'      => true,
+    ];
+
+    return $this->insertOne($doc);
+}
 
     // ── Get all items by provider ──
     public function getByProvider(string $providerId, array $filter = []): array {
