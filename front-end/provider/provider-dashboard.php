@@ -29,50 +29,44 @@ $providerModel  = new Provider();
 $providerData   = $providerModel->findById($providerId);
 $providerLogo   = $providerData['businessLogo'] ?? '';
 $providerEmail  = $providerData['email'] ?? '';
-$providerCat    = $providerData['category'] ?? '';
 $firstName      = explode(' ', $providerName)[0];
 
 // Items
-$itemModel    = new Item();
-$allItems     = $itemModel->getByProvider($providerId);
-$activeItems  = array_filter($allItems, fn($i) => !empty($i['isAvailable']));
-$saleItems    = array_filter($allItems, fn($i) => ($i['listingType'] ?? '') === 'sell');
-$donateItems  = array_filter($allItems, fn($i) => ($i['listingType'] ?? '') === 'donate');
+$itemModel   = new Item();
+$allItems    = $itemModel->getByProvider($providerId);
+$saleItems   = array_filter($allItems, fn($i) => ($i['listingType'] ?? '') === 'sell');
+$donateItems = array_filter($allItems, fn($i) => ($i['listingType'] ?? '') === 'donate');
 
-// Sort items by createdAt desc for recent items
 usort($allItems, function($a, $b) {
     $ta = isset($a['createdAt']) ? $a['createdAt']->toDateTime()->getTimestamp() : 0;
     $tb = isset($b['createdAt']) ? $b['createdAt']->toDateTime()->getTimestamp() : 0;
     return $tb - $ta;
 });
-$recentItems = array_slice($allItems, 0, 3);
+$recentItems = array_slice($allItems, 0, 5);
 
 // Orders
-$orderItemModel   = new OrderItem();
-$orderModel       = new Order();
-$allOrderItems    = $orderItemModel->getByProvider($providerId);
+$orderItemModel = new OrderItem();
+$orderModel     = new Order();
+$allOrderItems  = $orderItemModel->getByProvider($providerId);
 
-// Sort order items by createdAt desc
 usort($allOrderItems, function($a, $b) {
     $ta = isset($a['createdAt']) ? $a['createdAt']->toDateTime()->getTimestamp() : 0;
     $tb = isset($b['createdAt']) ? $b['createdAt']->toDateTime()->getTimestamp() : 0;
     return $tb - $ta;
 });
 
-// Get unique order IDs in recency order
 $seenOrderIds  = [];
 $recentOrders  = [];
 $allOrderIds   = [];
 foreach ($allOrderItems as $oi) {
     $oid = (string)$oi['orderId'];
     if (!in_array($oid, $allOrderIds)) $allOrderIds[] = $oid;
-    if (count($recentOrders) < 3 && !in_array($oid, $seenOrderIds)) {
+    if (count($recentOrders) < 5 && !in_array($oid, $seenOrderIds)) {
         $order = $orderModel->findById($oid);
         if ($order) {
-            // attach snapshot info from order item
             $order['_snapshot'] = $oi;
-            $recentOrders[] = $order;
-            $seenOrderIds[] = $oid;
+            $recentOrders[]     = $order;
+            $seenOrderIds[]     = $oid;
         }
     }
 }
@@ -96,7 +90,6 @@ $stats = [
     'pendingOrders'   => $pendingOrders,
 ];
 
-// Status badge helper
 function statusBadge(string $status): string {
     return match($status) {
         'pending'   => '<span class="badge badge-pending">Pending</span>',
@@ -118,9 +111,9 @@ function timeAgo($utcDate): string {
     if (!$utcDate) return '';
     $ts   = $utcDate->toDateTime()->getTimestamp();
     $diff = time() - $ts;
-    if ($diff < 60)     return 'just now';
-    if ($diff < 3600)   return floor($diff/60) . 'm ago';
-    if ($diff < 86400)  return floor($diff/3600) . 'h ago';
+    if ($diff < 60)    return 'just now';
+    if ($diff < 3600)  return floor($diff/60) . 'm ago';
+    if ($diff < 86400) return floor($diff/3600) . 'h ago';
     return $utcDate->toDateTime()->format('d M Y');
 }
 ?>
@@ -143,13 +136,18 @@ function timeAgo($utcDate): string {
       position: sticky; top: 0; z-index: 100;
       box-shadow: 0 2px 16px rgba(26,58,107,0.18);
     }
-    .nav-left { display: flex; align-items: center; gap: 0; }
+    .nav-left { display: flex; align-items: center; }
     .nav-logo { height: 90px; }
     .nav-search-wrap { position: relative; }
-    .nav-search-wrap svg { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); opacity: 0.6; pointer-events: none; }
-    .nav-search-wrap input { background: rgba(255,255,255,0.15); border: 1.5px solid rgba(255,255,255,0.4); border-radius: 50px; padding: 10px 18px 10px 40px; color: #fff; font-size: 14px; outline: none; width: 260px; font-family: 'Playfair Display', serif; transition: width 0.3s, background 0.2s; }
+    .nav-search-wrap svg.search-icon { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); opacity: 0.6; pointer-events: none; }
+    .nav-search-wrap input {
+      background: rgba(255,255,255,0.15); border: 1.5px solid rgba(255,255,255,0.4);
+      border-radius: 50px; padding: 10px 18px 10px 40px; color: #fff; font-size: 14px;
+      outline: none; width: 260px; font-family: 'Playfair Display', serif;
+      transition: width 0.3s, background 0.2s;
+    }
     .nav-search-wrap input::placeholder { color: rgba(255,255,255,0.6); }
-    .nav-search-wrap input:focus { width: 320px; background: rgba(255,255,255,0.25); }
+    .nav-search-wrap input:focus { width: 340px; background: rgba(255,255,255,0.25); }
     .nav-right { display: flex; align-items: center; gap: 14px; }
     .nav-provider-info { display: flex; align-items: center; gap: 14px; }
     .nav-provider-logo { width: 46px; height: 46px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.6); background: rgba(255,255,255,0.15); display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: 700; color: #fff; overflow: hidden; flex-shrink: 0; }
@@ -157,6 +155,43 @@ function timeAgo($utcDate): string {
     .nav-provider-text { display: flex; flex-direction: column; }
     .nav-provider-name { font-size: 15px; font-weight: 700; color: #fff; }
     .nav-provider-email { font-size: 12px; color: rgba(255,255,255,0.75); }
+
+    /* ── SEARCH DROPDOWN ── */
+    .search-dropdown {
+      display: none; position: absolute; top: calc(100% + 10px); left: 0;
+      width: 420px; background: #fff; border-radius: 18px;
+      border: 1.5px solid #e0eaf5; box-shadow: 0 12px 40px rgba(26,58,107,0.18);
+      z-index: 9999; overflow: hidden;
+    }
+    .search-dropdown.visible { display: block; }
+    .sd-section-title {
+      font-size: 11px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.08em; color: #8a9ab5; padding: 12px 16px 6px;
+      border-bottom: 1px solid #f0f5fc;
+    }
+    .sd-row {
+      display: flex; align-items: center; gap: 12px;
+      padding: 10px 16px; text-decoration: none; color: inherit;
+      transition: background 0.15s; cursor: pointer;
+    }
+    .sd-row:hover { background: #f4f8ff; }
+    .sd-thumb {
+      width: 42px; height: 42px; border-radius: 10px; border: 1.5px solid #e0eaf5;
+      background: #f0f5ff; overflow: hidden; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .sd-thumb img { width: 100%; height: 100%; object-fit: cover; }
+    .sd-info { flex: 1; min-width: 0; }
+    .sd-name { font-size: 14px; font-weight: 700; color: #1a3a6b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .sd-sub  { font-size: 12px; color: #8a9ab5; margin-top: 2px; }
+    .sd-badge { border-radius: 50px; padding: 2px 10px; font-size: 11px; font-weight: 700; white-space: nowrap; flex-shrink: 0; }
+    .sd-badge-sell     { background: #fff4e6; color: #e07a1a; }
+    .sd-badge-donate   { background: #e8f7ee; color: #1a6b3a; }
+    .sd-badge-pending  { background: #fff4e6; color: #e07a1a; }
+    .sd-badge-completed{ background: #e8f7ee; color: #1a6b3a; }
+    .sd-badge-cancelled{ background: #fde8e8; color: #c0392b; }
+    .sd-empty { padding: 18px 16px; text-align: center; color: #b0c4d8; font-size: 13px; }
+    .sd-loading { padding: 16px; text-align: center; color: #8a9ab5; font-size: 13px; }
 
     /* ── LAYOUT ── */
     .page-body { display: flex; flex: 1; }
@@ -166,7 +201,7 @@ function timeAgo($utcDate): string {
     .sidebar-welcome { color: rgba(255,255,255,0.75); font-size: 17px; font-weight: 400; margin-bottom: 4px; }
     .sidebar-name { color: rgba(255,255,255,0.55); font-size: 38px; font-weight: 700; line-height: 1.1; margin-bottom: 36px; }
     .sidebar-nav { display: flex; flex-direction: column; gap: 16px; flex: 1; }
-    .sidebar-link { display: flex; align-items: center; gap: 10px; color: rgba(255,255,255,0.75); text-decoration: none; font-size: 16px; font-weight: 400; padding: 10px 8px; border-radius: 0; transition: color 0.2s; background: none !important; -webkit-tap-highlight-color: transparent; }
+    .sidebar-link { display: flex; align-items: center; gap: 10px; color: rgba(255,255,255,0.75); text-decoration: none; font-size: 16px; font-weight: 400; padding: 10px 8px; transition: color 0.2s; background: none !important; -webkit-tap-highlight-color: transparent; }
     .sidebar-link:hover { color: #fff; }
     .sidebar-link.active { color: #fff !important; font-weight: 700; border-bottom: 2px solid rgba(255,255,255,0.5); background: none !important; padding-bottom: 6px; }
     .sidebar-link svg { flex-shrink: 0; opacity: 0.8; }
@@ -185,7 +220,6 @@ function timeAgo($utcDate): string {
     /* ── PAGE HEADER ── */
     .page-header { margin-bottom: 28px; }
     .page-header h1 { font-size: 34px; font-weight: 700; font-family: 'Playfair Display', serif; background: linear-gradient(90deg, #143496 0%, #66a1d9 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; display: inline-block; }
-    .page-header h1 span { -webkit-text-fill-color: transparent; }
 
     /* ── STATS ROW ── */
     .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; margin-bottom: 28px; }
@@ -207,16 +241,14 @@ function timeAgo($utcDate): string {
     .panel { background: #fff; border-radius: 20px; border: 1.5px solid #e0eaf5; overflow: hidden; box-shadow: 0 2px 12px rgba(26,58,107,0.05); }
     .panel-header { display: flex; align-items: center; justify-content: space-between; padding: 18px 22px 14px; border-bottom: 1.5px solid #f0f5fc; }
     .panel-title { font-size: 20px; font-weight: 700; font-family: 'Playfair Display', serif; background: linear-gradient(90deg, #143496 0%, #66a1d9 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; display: inline-block; }
-    .panel-title span { -webkit-text-fill-color: transparent; }
     .panel-link { font-size: 12px; color: #2255a4; text-decoration: none; font-weight: 600; transition: color 0.2s; }
     .panel-link:hover { color: #1a3a6b; }
-    .panel-body { padding: 0; }
 
-    /* ── ORDER CARD ── */
+    /* ── ORDER ROW ── */
     .order-row { display: flex; align-items: center; gap: 14px; padding: 16px 22px; border-bottom: 1px solid #f5f8fc; transition: background 0.15s; }
     .order-row:last-child { border-bottom: none; }
     .order-row:hover { background: #f8fbff; }
-    .order-logo { width: 52px; height: 52px; border-radius: 12px; border: 1.5px solid #e0eaf5; overflow: hidden; flex-shrink: 0; display: flex; align-items: center; justify-content: center; background: #f0f5ff; font-size: 13px; font-weight: 700; color: #2255a4; }
+    .order-logo { width: 52px; height: 52px; border-radius: 12px; border: 1.5px solid #e0eaf5; overflow: hidden; flex-shrink: 0; display: flex; align-items: center; justify-content: center; background: #f0f5ff; }
     .order-logo img { width: 100%; height: 100%; object-fit: cover; }
     .order-info { flex: 1; min-width: 0; }
     .order-customer { font-size: 14px; font-weight: 700; color: #1a3a6b; margin-bottom: 4px; }
@@ -225,11 +257,11 @@ function timeAgo($utcDate): string {
     .order-price { font-size: 15px; font-weight: 700; color: #e07a1a; white-space: nowrap; }
     .order-right { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
 
-    /* ── ITEM CARD ── */
+    /* ── ITEM ROW ── */
     .item-row { display: flex; align-items: center; gap: 14px; padding: 14px 22px; border-bottom: 1px solid #f5f8fc; transition: background 0.15s; }
     .item-row:last-child { border-bottom: none; }
     .item-row:hover { background: #f8fbff; }
-    .item-thumb { width: 64px; height: 64px; border-radius: 12px; object-fit: cover; background: #e0eaf5; flex-shrink: 0; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+    .item-thumb { width: 64px; height: 64px; border-radius: 12px; background: #e0eaf5; flex-shrink: 0; overflow: hidden; display: flex; align-items: center; justify-content: center; }
     .item-thumb img { width: 100%; height: 100%; object-fit: cover; }
     .item-info { flex: 1; min-width: 0; }
     .item-name { font-size: 14px; font-weight: 700; color: #1a3a6b; margin-bottom: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -276,14 +308,18 @@ function timeAgo($utcDate): string {
       <img class="nav-logo" src="../../images/Replate-white.png" alt="RePlate"/>
     </div>
     <div class="nav-right">
-      <div class="nav-search-wrap">
-        <svg width="16" height="16" fill="none" stroke="#fff" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
-        <input type="text" placeholder="Search......"/>
+
+      <!-- ── SEARCH ── -->
+      <div class="nav-search-wrap" id="searchWrap">
+        <svg class="search-icon" width="16" height="16" fill="none" stroke="#fff" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+        <input type="text" id="searchInput" placeholder="Search items or orders..." autocomplete="off"/>
+        <div class="search-dropdown" id="searchDropdown"></div>
       </div>
+
       <div class="nav-provider-info">
         <div class="nav-provider-logo">
           <?php if ($providerLogo): ?>
-            <img src="<?= htmlspecialchars($providerLogo) ?>" alt="<?= htmlspecialchars($providerName) ?>"/>
+            <img src="<?= htmlspecialchars($providerLogo) ?>" alt=""/>
           <?php else: ?>
             <?= mb_strtoupper(mb_substr($providerName, 0, 1)) ?>
           <?php endif; ?>
@@ -324,7 +360,6 @@ function timeAgo($utcDate): string {
           <a href="#" class="sidebar-social-icon">in</a>
           <a href="#" class="sidebar-social-icon">&#120143;</a>
           <a href="#" class="sidebar-social-icon">&#9834;</a>
-          
         </div>
         <div class="sidebar-footer-copy">
           <span>© 2026</span>
@@ -383,7 +418,6 @@ function timeAgo($utcDate): string {
             <?php foreach ($recentOrders as $order):
               $snap     = $order['_snapshot'] ?? [];
               $custName = htmlspecialchars($snap['providerName'] ?? 'Customer');
-              $itemName = htmlspecialchars($snap['itemName'] ?? '');
               $photo    = $snap['photoUrl'] ?? '';
               $price    = number_format((float)($order['totalAmount'] ?? 0), 2);
               $num      = htmlspecialchars($order['orderNumber'] ?? '');
@@ -467,16 +501,14 @@ function timeAgo($utcDate): string {
 
         <!-- RIGHT COLUMN -->
         <div class="right-col">
-
-          <!-- QUICK ACTIONS -->
           <div class="panel">
             <div class="panel-header">
               <h2 class="panel-title">Quick <span>Actions</span></h2>
             </div>
             <div class="actions-body">
-              <a href="provider-add-item.php" class="action-btn">
+              <a href="provider-items.php" class="action-btn">
                 <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                Add item
+                Add Item
               </a>
               <a href="provider-orders.php" class="action-btn secondary">
                 <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/></svg>
@@ -485,7 +517,6 @@ function timeAgo($utcDate): string {
             </div>
           </div>
 
-          <!-- ITEMS OVERVIEW -->
           <div class="panel">
             <div class="panel-header">
               <h2 class="panel-title">Items <span>Overview</span></h2>
@@ -507,20 +538,107 @@ function timeAgo($utcDate): string {
               </div>
             </div>
           </div>
-
-        </div><!-- /right-col -->
-      </div><!-- /dash-grid -->
+        </div>
+      </div>
     </main>
   </div>
 
   <script>
-    // Highlight active sidebar link
-    document.querySelectorAll('.sidebar-link').forEach(link => {
-      link.addEventListener('click', () => {
-        document.querySelectorAll('.sidebar-link').forEach(l => l.classList.remove('active'));
-        link.classList.add('active');
-      });
+    const searchInput    = document.getElementById('searchInput');
+    const searchDropdown = document.getElementById('searchDropdown');
+    let debounceTimer    = null;
+
+    searchInput.addEventListener('input', () => {
+      clearTimeout(debounceTimer);
+      const q = searchInput.value.trim();
+      if (q.length < 2) { closeDropdown(); return; }
+      debounceTimer = setTimeout(() => doSearch(q), 300);
     });
+
+    // Close dropdown when clicking outside
+    document.addEventListener('click', (e) => {
+      if (!document.getElementById('searchWrap').contains(e.target)) closeDropdown();
+    });
+
+    searchInput.addEventListener('focus', () => {
+      if (searchInput.value.trim().length >= 2) doSearch(searchInput.value.trim());
+    });
+
+    function closeDropdown() {
+      searchDropdown.classList.remove('visible');
+      searchDropdown.innerHTML = '';
+    }
+
+    function doSearch(q) {
+      searchDropdown.innerHTML = '<div class="sd-loading">Searching...</div>';
+      searchDropdown.classList.add('visible');
+
+  fetch(`../../back-end/provider-search.php?q=${encodeURIComponent(q)}`)
+        .then(r => r.json())
+        .then(data => renderResults(data))
+        .catch(() => {
+          searchDropdown.innerHTML = '<div class="sd-empty">Something went wrong.</div>';
+        });
+    }
+
+    function renderResults(data) {
+      const items  = data.items  || [];
+      const orders = data.orders || [];
+
+      if (!items.length && !orders.length) {
+        searchDropdown.innerHTML = '<div class="sd-empty">No results found.</div>';
+        return;
+      }
+
+      let html = '';
+
+      if (items.length) {
+        html += `<div class="sd-section-title">Items</div>`;
+        items.forEach(item => {
+          const thumb = item.photoUrl
+            ? `<img src="${esc(item.photoUrl)}" alt="" onerror="this.style.display='none'">`
+            : `<svg width="20" height="20" fill="none" stroke="#c8d8ee" stroke-width="1.5" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3"/></svg>`;
+          const badgeClass = item.listingType === 'donate' ? 'sd-badge-donate' : 'sd-badge-sell';
+          const badgeLabel = item.listingType === 'donate' ? 'Donation' : 'Selling';
+          html += `
+            <a class="sd-row" href="provider-item-details.php?id=${esc(item.id)}">
+              <div class="sd-thumb">${thumb}</div>
+              <div class="sd-info">
+                <div class="sd-name">${esc(item.name)}</div>
+                <div class="sd-sub">${esc(item.price)}</div>
+              </div>
+              <span class="sd-badge ${badgeClass}">${badgeLabel}</span>
+            </a>`;
+        });
+      }
+
+      if (orders.length) {
+        html += `<div class="sd-section-title">Orders</div>`;
+        orders.forEach(order => {
+          const badgeClass = `sd-badge-${order.status}`;
+          const statusLabel = order.status.charAt(0).toUpperCase() + order.status.slice(1);
+          html += `
+            <a class="sd-row" href="provider-orders.php">
+              <div class="sd-thumb">
+                <svg width="20" height="20" fill="none" stroke="#2255a4" stroke-width="1.5" viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/></svg>
+              </div>
+              <div class="sd-info">
+                <div class="sd-name">Order #${esc(order.orderNumber)}</div>
+                <div class="sd-sub">${order.itemName ? esc(order.itemName) + ' · ' : ''}﷼ ${esc(order.total)}</div>
+              </div>
+              <span class="sd-badge ${badgeClass}">${statusLabel}</span>
+            </a>`;
+        });
+      }
+
+      searchDropdown.innerHTML = html;
+    }
+
+    function esc(str) {
+      const d = document.createElement('div');
+      d.textContent = String(str ?? '');
+      return d.innerHTML;
+    }
   </script>
 </body>
 </html>
