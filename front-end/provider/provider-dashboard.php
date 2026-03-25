@@ -312,7 +312,7 @@ function timeAgo($utcDate): string {
       <!-- ── SEARCH ── -->
       <div class="nav-search-wrap" id="searchWrap">
         <svg class="search-icon" width="16" height="16" fill="none" stroke="#fff" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
-        <input type="text" id="searchInput" placeholder="Search items or orders..." autocomplete="off"/>
+        <input type="text" id="searchInput" placeholder="Search items ..." autocomplete="off"/>
         <div class="search-dropdown" id="searchDropdown"></div>
       </div>
 
