@@ -597,6 +597,141 @@ $hasErrors = !empty($errors);
       align-items: center;
       gap: 8px;
     }
+    @media (max-width: 768px) {
+  .page {
+    display: flex;
+    flex-direction: column;
+    min-height: auto;
+    background-image: none;
+  }
+
+  .right-panel {
+    display: none;
+  }
+
+  .left-panel {
+    align-items: center;
+  }
+
+  .form-area {
+    margin-top: 60px;
+    max-width: 100%;
+    padding: 0 16px;
+  }
+
+  .form-title {
+    font-size: 24px;
+    margin-bottom: 10px;
+  }
+
+  .form-subtitle {
+    font-size: 16px;
+    margin-bottom: 22px;
+  }
+
+  .provider-form {
+    gap: 20px;
+    width: 100%;
+  }
+
+  .field-label {
+    font-size: 16px;
+    margin-bottom: 4px;
+  }
+
+  .field-input,
+  .field-select,
+  .field-textarea {
+    width: 100%;
+    padding: 16px 20px;
+    font-size: 16px;
+    border-radius: 50px;
+  }
+
+  .field-textarea {
+    border-radius: 20px;
+    min-height: 90px;
+  }
+
+  .password-wrap .field-input {
+    padding-right: 58px;
+  }
+
+  .toggle-pw {
+    right: 20px;
+  }
+
+  .row-2 {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+
+  .location-choice {
+    flex-direction: row;
+    gap: 10px;
+    width: 100%;
+  }
+
+  .location-mode-btn {
+    flex: 1;
+  }
+
+  .form-buttons {
+    display: flex;
+    flex-direction: row;
+    gap: 12px;
+    width: 100%;
+    margin-top: 6px;
+  }
+
+  .btn-next,
+  .btn-back-step,
+  .btn-submit {
+    width: 50%;
+    min-width: 0;
+    height: auto;
+    padding: 15px 20px;
+    font-size: 16px;
+  }
+
+  .back-btn {
+    top: 22px;
+    left: 20px;
+    width: 38px;
+    height: 38px;
+    font-size: 22px;
+  }
+  footer {
+  padding: 20px 16px;
+}
+
+.footer-top {
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+}
+
+.footer-divider {
+  display: none;
+}
+
+.footer-bottom {
+  font-size: 11px;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px;
+}
+
+.footer-bottom img {
+  height: 24px !important;
+}
+
+.social-icon {
+  width: 36px;
+  height: 36px;
+  font-size: 13px;
+}
+}
   </style>
 </head>
 <body>
@@ -1091,47 +1226,58 @@ if (!logo && !logoUrl) {
 
     setLocationMode(savedLocationMode);
   </script>
-  <script src="https://upload-widget.cloudinary.com/latest/global/all.js"></script>
-  <script src="https://upload-widget.cloudinary.com/latest/global/all.js"></script>
+
 <script>
 const providerForm = document.getElementById('providerForm');
 const logoInput = document.getElementById('logo');
 const logoUrlInput = document.getElementById('logoUrl');
 
-providerForm.addEventListener('submit', function(e) {
+// ── Upload immediately when file is selected in step 1 ──
+logoInput.addEventListener('change', async function () {
+  const file = logoInput.files[0];
+  if (!file) return;
+
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('upload_preset', 'replate_logos'); // must be unsigned in Cloudinary
+  formData.append('folder', 'replate/logos');
+
+  try {
+    const res = await fetch('https://api.cloudinary.com/v1_1/dwsafdzwr/image/upload', {
+      method: 'POST',
+      body: formData,
+    });
+    const data = await res.json();
+
+    if (data.secure_url) {
+      logoUrlInput.value = data.secure_url;
+    } else {
+      showFieldError('logo', 'logoError', 'Logo upload failed. Please try again.');
+    }
+  } catch (err) {
+    showFieldError('logo', 'logoError', 'Logo upload failed. Please try again.');
+  }
+});
+
+providerForm.addEventListener('submit', function (e) {
   const isStep3Active = document.getElementById('step3').classList.contains('active');
   if (!isStep3Active) return;
 
-  if (logoUrlInput.value || !logoInput.files[0]) {
-    return;
+  if (!logoUrlInput.value) {
+    e.preventDefault();
+    alert('Please go back and upload a logo first.');
   }
+});
 
-  e.preventDefault();
+// ── On submit just validate logoUrl is set ──
+providerForm.addEventListener('submit', function (e) {
+  const isStep3Active = document.getElementById('step3').classList.contains('active');
+  if (!isStep3Active) return;
 
-  const widget = cloudinary.createUploadWidget(
-    {
-      cloudName: 'dwsafdzwr',
-      uploadPreset: 'replate_logos',
-      multiple: false,
-      maxFiles: 1,
-      resourceType: 'image',
-      folder: 'replate/logos'
-    },
-    (error, result) => {
-      if (error) {
-        console.error(error);
-        alert('Logo upload failed.');
-        return;
-      }
-
-      if (result && result.event === 'success') {
-        logoUrlInput.value = result.info.secure_url;
-        providerForm.submit();
-      }
-    }
-  );
-
-  widget.open();
+  if (!logoUrlInput.value) {
+    e.preventDefault();
+    alert('Please go back and upload a logo first.');
+  }
 });
 </script>
 </body>

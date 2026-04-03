@@ -993,7 +993,138 @@ if ($inCart && $inFav) {
   align-items: center;
   justify-content: center;
 }
+/* ══════════════════════════════════════
+   MOBILE RESPONSIVE
+══════════════════════════════════════ */
+.hamburger {
+  display: none;
+  flex-direction: column;
+  gap: 5px;
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: 6px;
+}
+.hamburger span {
+  display: block;
+  width: 24px;
+  height: 2.5px;
+  background: #fff;
+  border-radius: 2px;
+  transition: all 0.3s;
+}
+.hamburger.open span:nth-child(1) { transform: translateY(7.5px) rotate(45deg); }
+.hamburger.open span:nth-child(2) { opacity: 0; }
+.hamburger.open span:nth-child(3) { transform: translateY(-7.5px) rotate(-45deg); }
 
+.mobile-menu {
+  display: none;
+  position: fixed;
+  inset: 0;
+  top: 72px;
+  background: linear-gradient(180deg, #1a3a6b 0%, #2255a4 100%);
+  z-index: 99;
+  flex-direction: column;
+  padding: 32px 28px;
+  gap: 0;
+}
+.mobile-menu.open { display: flex; }
+.mobile-menu a {
+  color: rgba(255,255,255,0.85);
+  font-size: 22px;
+  font-weight: 700;
+  font-family: 'Playfair Display', serif;
+  padding: 18px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.12);
+  text-decoration: none;
+}
+.mobile-menu a:hover { color: #fff; }
+.mobile-search {
+  margin-top: 24px;
+  position: relative;
+}
+.mobile-search svg {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  opacity: 0.6;
+  pointer-events: none;
+}
+.mobile-search input {
+  width: 100%;
+  background: rgba(255,255,255,0.15);
+  border: 1.5px solid rgba(255,255,255,0.4);
+  border-radius: 50px;
+  padding: 12px 16px 12px 40px;
+  color: #fff;
+  font-size: 15px;
+  outline: none;
+  font-family: 'Playfair Display', serif;
+}
+.mobile-search input::placeholder { color: rgba(255,255,255,0.6); }
+
+@media (max-width: 768px) {
+  /* Nav */
+  nav { padding: 0 18px; }
+  .nav-logo { height: 72px; }
+  .nav-center { display: none; }
+  .nav-search-wrap { display: none; }
+  .hamburger { display: flex; }
+
+  /* Hero */
+  .hero { min-height: 52vh; }
+  .hero-content { padding: 28px 20px; }
+  .hero-subtitle { font-size: 15px; margin-bottom: 8px; }
+  .hero-title { font-size: 34px; margin-bottom: 20px; letter-spacing: -0.5px; }
+  .btn-shop { padding: 13px 32px; font-size: 15px; }
+  .hero-overlay {
+    background: linear-gradient(180deg, rgba(250,253,255,0.92) 0%, rgba(250,253,255,0.6) 60%, transparent 100%);
+  }
+
+  /* Sections */
+  .section { padding: 32px 16px 24px; }
+  .section-title { font-size: 24px; margin-bottom: 18px; }
+
+  /* Scroll rows — show 2 cards at once */
+  .scroll-row { gap: 12px; padding: 8px 4px 14px; }
+  .product-card { min-width: calc(50vw - 28px); max-width: calc(50vw - 28px); }
+  .category-card { min-width: calc(50vw - 28px); max-width: calc(50vw - 28px); }
+  .provider-card { min-width: calc(50vw - 28px); max-width: calc(50vw - 28px); }
+
+  /* Product card internals */
+  .product-img-box { height: 120px; }
+  .product-name { font-size: 14px; }
+  .product-price { font-size: 13px; }
+  .product-desc { font-size: 11px; }
+  .btn-view { font-size: 12px; padding: 9px 0; }
+  .sar-icon { width: 16px; height: 16px; }
+
+  /* Category card internals */
+  .category-img-box { width: 64px; height: 64px; }
+  .category-name { font-size: 13px; }
+
+  /* Provider card internals */
+  .provider-logo-big { width: 56px; height: 56px; }
+  .provider-logo-big .logo-placeholder { font-size: 18px; }
+  .provider-logo-name { font-size: 12px !important; }
+  .provider-type-label { font-size: 11px; }
+
+  /* Who we are */
+  .who-section { flex-direction: column; padding: 36px 20px; gap: 20px; text-align: center; }
+  .who-logo-box img { height: 100px !important; }
+  .who-content h2 { font-size: 22px; }
+  .who-content p { font-size: 13px; line-height: 1.7; }
+
+  /* Footer */
+  footer { padding: 24px 16px; }
+  .footer-top { flex-wrap: wrap; justify-content: center; gap: 12px; }
+  .footer-bottom { font-size: 11px; }
+
+  /* Arrows */
+  .scroll-arrows { margin-top: 14px; }
+  .arrow-btn { width: 28px; height: 28px; font-size: 11px; }
+}
     /* ── EMPTY STATE ── */
     .empty-state {
       display: flex;
@@ -1017,6 +1148,57 @@ if ($inCart && $inFav) {
       from { opacity: 0; transform: translateY(30px); }
       to   { opacity: 1; transform: translateY(0); }
     }
+@media (max-width: 768px) {
+  .nav-btn,
+  .btn-login,
+  .btn-signup {
+    padding: 6px 14px;     /* smaller */
+    font-size: 13px;       /* smaller text */
+    border-radius: 30px;
+  }
+}
+@media (max-width: 768px) {
+  .item-card {
+    padding: 12px;
+    border-radius: 18px;
+  }
+}
+@media (max-width: 768px) {
+  .item-card img {
+    width: 100%;
+    height: 120px;      /* 🔥 smaller image */
+    object-fit: cover;
+    border-radius: 12px;
+  }
+}
+@media (max-width: 768px) {
+  .item-title {
+    font-size: 14px;
+  }
+
+  .item-subtitle,
+  .item-meta {
+    font-size: 12px;
+  }
+
+  .item-price {
+    font-size: 13px;
+  }
+}
+@media (max-width: 768px) {
+  .item-card {
+    gap: 6px; /* if using flex/grid */
+  }
+
+  .item-card .section {
+    margin-bottom: 6px;
+  }
+}
+@media (max-width: 768px) {
+  .item-card .icon {
+    transform: scale(0.85);
+  }
+}
   </style>
 </head>
 <body>
@@ -1044,6 +1226,7 @@ if ($inCart && $inFav) {
     </div>
 
     <div class="nav-right">
+
 <?php if (!$isLoggedIn): ?>
 <button class="btn-signup" onclick="window.location.href='signup-customer.php'">Sign up</button>
 <button class="btn-login" onclick="window.location.href='login.php'">Log in</button>
@@ -1140,6 +1323,11 @@ if ($inCart && $inFav) {
           <circle cx="12" cy="7" r="4"/>
         </svg>
       </a>
+                  <button id="hamburger" class="hamburger" onclick="toggleMobileMenu()" aria-label="Open menu">
+    <span></span>
+    <span></span>
+    <span></span>
+  </button>
       <?php else: ?>
       <button class="nav-avatar" onclick="document.getElementById('authModal').style.display='flex'" style="border:none;cursor:pointer;">
         <svg width="20" height="20" fill="none" stroke="#fff" stroke-width="1.8" viewBox="0 0 24 24">
@@ -1147,6 +1335,7 @@ if ($inCart && $inFav) {
           <circle cx="12" cy="7" r="4"/>
         </svg>
       </button>
+
       <?php endif; ?>
 
       <!-- Auth required modal -->
@@ -1166,7 +1355,23 @@ if ($inCart && $inFav) {
       </div>
     </div>
   </nav>
+<!-- Mobile menu (slides in below nav) -->
+<div class="mobile-menu" id="mobileMenu">
+    <div class="mobile-search">
+    <svg width="16" height="16" fill="none" stroke="#fff" stroke-width="2" viewBox="0 0 24 24">
+      <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
+    </svg>
+    <input type="text" id="mobileSearchInput" placeholder="Search products or providers..." autocomplete="off"/>
+  </div>
+  <a href="../shared/landing.php" onclick="closeMobileMenu()">Home Page</a>
+  <a href="#categories" onclick="closeMobileMenu()">Categories</a>
+  <a href="#providers" onclick="closeMobileMenu()">Providers</a>
+  <?php if (!$isLoggedIn): ?>
+  <a href="login.php" onclick="closeMobileMenu()">Log in</a>
+  <a href="signup-customer.php" onclick="closeMobileMenu()">Sign up</a>
+  <?php endif; ?>
 
+</div>
   <!-- HERO -->
   <section class="hero">
     <div class="hero-bg"></div>
@@ -1603,7 +1808,25 @@ if ($inCart && $inFav) {
       searchDropdown.innerHTML = html;
       searchDropdown.classList.add('open');
     }
+// ── Mobile menu ──
+function toggleMobileMenu() {
+  const menu = document.getElementById('mobileMenu');
+  const btn  = document.getElementById('hamburger');
+  menu.classList.toggle('open');
+  btn.classList.toggle('open');
+  document.body.style.overflow = menu.classList.contains('open') ? 'hidden' : '';
+}
+function closeMobileMenu() {
+  document.getElementById('mobileMenu').classList.remove('open');
+  document.getElementById('hamburger').classList.remove('open');
+  document.body.style.overflow = '';
+}
 
+// ── Mobile search mirrors desktop search ──
+document.getElementById('mobileSearchInput')?.addEventListener('input', function() {
+  document.getElementById('searchInput').value = this.value;
+  document.getElementById('searchInput').dispatchEvent(new Event('input'));
+});
     function hl(text, q) {
       return text.replace(
         new RegExp(`(${q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')})`, 'gi'),

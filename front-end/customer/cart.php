@@ -183,7 +183,7 @@ function rp_page_styles(){ ?>
 <style>
 *{box-sizing:border-box}
 html,body{margin:0;padding:0}
-body{background:#e8eef5;color:#1b2f74;font-family:'Playfair Display',serif}
+body{background:#e8eef5;color:#1b2f74;font-family:'Playfair Display',serif;min-height:100vh;display:flex;flex-direction:column;align-items:stretch;}
 a{text-decoration:none}
 
 /* ── NAVBAR ── */
@@ -226,8 +226,8 @@ nav{display:flex;align-items:center;justify-content:space-between;padding:0 48px
 .bell-badge{position:absolute;top:-3px;right:-3px;width:18px;height:18px;background:#e53935;border-radius:50%;border:2px solid transparent;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff;pointer-events:none}
 
 /* ── PAGE LAYOUT ── */
-.page-wrap{max-width:860px;margin:0 auto;padding:28px 20px 60px}
-.page-title-row{display:flex;align-items:center;gap:20px;margin:0 0 28px}
+.page-wrap{max-width:860px;margin:0 auto;padding:28px 20px 60px;flex:1;width:100%;}
+.page-title-row{display:flex;align-items:center;gap:20px;margin:0 0 28px;justify-content:flex-start;}
 .back-btn{width:46px;height:46px;border-radius:50%;background:#cdd9e8;color:#1b3f92;display:flex;align-items:center;justify-content:center;font-size:28px;line-height:1;flex-shrink:0;font-weight:700}
 .back-btn:hover{background:#bfcee2}
 .page-title{font-size:62px;line-height:.95;margin:0;color:#183482;font-weight:700}
@@ -368,6 +368,40 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
     header('Location: cart.php'); exit;
 }
 $cart = $cartModel->getOrCreate($customerId);
+// ── Auto-fix cart: remove sold out, reduce over-stocked ──
+$cartAlerts = [];
+foreach (($cart['cartItems'] ?? []) as $ci) {
+    $liveItem = $itemModel->findById(rp_oid($ci['itemId']));
+    $cartQty  = (int)$ci['quantity'];
+    $liveQty  = (int)($liveItem['quantity'] ?? 0);
+
+    // Item gone or sold out → remove from cart
+    if (!$liveItem || empty($liveItem['isAvailable']) || $liveQty <= 0) {
+        $cartModel->removeItem($customerId, rp_oid($ci['itemId']));
+        $cartAlerts[] = [
+            'type'    => 'removed',
+            'name'    => $ci['itemName'] ?? 'Item',
+            'photo'   => $liveItem['photoUrl'] ?? '',
+            'qty'     => $cartQty,
+        ];
+        continue;
+    }
+
+    // Cart has more than available → reduce
+    if ($cartQty > $liveQty) {
+        $cartModel->updateQuantity($customerId, rp_oid($ci['itemId']), $liveQty);
+        $cartAlerts[] = [
+            'type'      => 'reduced',
+            'name'      => $ci['itemName'] ?? 'Item',
+            'photo'     => $liveItem['photoUrl'] ?? '',
+            'oldQty'    => $cartQty,
+            'newQty'    => $liveQty,
+        ];
+    }
+}
+
+// Reload cart after fixes
+$cart = $cartModel->getOrCreate($customerId);
 $grouped = [];
 $total = 0;
 $_cartItemIds = [];
@@ -504,7 +538,27 @@ $alertCount = count($expiryAlerts);
 
   <?php endif; ?>
 </div>
-
+<?php if (!empty($cartAlerts)): ?>
+  <div style="margin-bottom:24px;display:flex;flex-direction:column;gap:12px;">
+    <?php foreach ($cartAlerts as $alert): ?>
+      <div style="background:#fff;border:1.5px solid <?= $alert['type']==='removed' ? '#f5c0bc' : '#fde8b4' ?>;border-radius:18px;padding:14px 18px;display:flex;align-items:center;gap:14px;box-shadow:0 2px 10px rgba(26,58,107,0.06);">
+        <?php if (!empty($alert['photo'])): ?>
+          <img src="<?= rp_h($alert['photo']) ?>" style="width:56px;height:56px;border-radius:12px;object-fit:cover;flex-shrink:0;">
+        <?php else: ?>
+          <div style="width:56px;height:56px;border-radius:12px;background:#e8eef5;flex-shrink:0;"></div>
+        <?php endif; ?>
+        <div>
+          <div style="font-size:16px;font-weight:700;color:#183482;margin-bottom:4px;"><?= rp_h($alert['name']) ?></div>
+          <?php if ($alert['type'] === 'removed'): ?>
+            <div style="font-size:14px;color:#a03030;">❌ Sorry, this item is sold out and has been removed from your cart.</div>
+          <?php else: ?>
+            <div style="font-size:14px;color:#8a6000;">⚠️ Only <?= (int)$alert['newQty'] ?> left in stock — quantity updated from <?= (int)$alert['oldQty'] ?> to <?= (int)$alert['newQty'] ?>.</div>
+          <?php endif; ?>
+        </div>
+      </div>
+    <?php endforeach; ?>
+  </div>
+<?php endif; ?>
 <?php rp_footer(); ?>
 
 <script>

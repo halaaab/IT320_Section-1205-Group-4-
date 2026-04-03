@@ -333,6 +333,7 @@ footer{background:linear-gradient(90deg,#1a3a6b 0%,#2255a4 60%,#3a7bd5 100%);pad
 .notif-footer{padding:12px 18px;border-top:1.5px solid #f0f5fc;text-align:center}
 .notif-footer a{font-size:13px;color:#2255a4;text-decoration:none;font-weight:600;font-family:'Playfair Display',serif}
 .notif-footer a:hover{color:#1a3a6b}
+.riyal-img{height:16px;object-fit:contain;vertical-align:middle;margin-right:2px}
 @keyframes cartPop{0%{transform:scale(0);opacity:0}70%{transform:scale(1.25);opacity:1}100%{transform:scale(1);opacity:1}}
 @keyframes floatUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 .cart-badge{animation:cartPop .4s cubic-bezier(0.175,0.885,0.32,1.275)}

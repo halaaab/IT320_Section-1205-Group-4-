@@ -299,38 +299,286 @@ function timeAgo($utcDate): string {
     /* ── EMPTY STATE ── */
     .panel-empty { padding: 32px; text-align: center; color: #b0c4d8; font-size: 14px; }
     .panel-empty svg { display: block; margin: 0 auto 10px; }
+    /* ── MOBILE HEADER / HAMBURGER ── */
+.hamburger {
+  display: none;
+  flex-direction: column;
+  gap: 5px;
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: 6px;
+}
+
+.hamburger span {
+  display: block;
+  width: 24px;
+  height: 2.5px;
+  background: #fff;
+  border-radius: 2px;
+  transition: all 0.3s;
+}
+
+.hamburger.open span:nth-child(1) {
+  transform: translateY(7.5px) rotate(45deg);
+}
+.hamburger.open span:nth-child(2) {
+  opacity: 0;
+}
+.hamburger.open span:nth-child(3) {
+  transform: translateY(-7.5px) rotate(-45deg);
+}
+
+.mobile-menu {
+  display: none;
+  position: fixed;
+  inset: 0;
+  top: 72px;
+  background: linear-gradient(180deg, #1a3a6b 0%, #2255a4 100%);
+  z-index: 99;
+  flex-direction: column;
+  padding: 24px 20px;
+}
+
+.mobile-menu.open {
+  display: flex;
+}
+
+.mobile-menu a {
+  color: rgba(255,255,255,0.9);
+  font-size: 22px;
+  font-weight: 700;
+  font-family: 'Playfair Display', serif;
+  padding: 18px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.12);
+  text-decoration: none;
+}
+
+.mobile-menu a:hover {
+  color: #fff;
+}
+
+.mobile-search {
+  margin-top: 22px;
+  position: relative;
+}
+
+.mobile-search svg {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.mobile-search input {
+  width: 100%;
+  background: rgba(255,255,255,0.15);
+  border: 1.5px solid rgba(255,255,255,0.4);
+  border-radius: 50px;
+  padding: 12px 16px 12px 40px;
+  color: #fff;
+  font-size: 15px;
+  outline: none;
+  font-family: 'Playfair Display', serif;
+}
+
+.mobile-search input::placeholder {
+  color: rgba(255,255,255,0.6);
+}
+@media (max-width: 768px) {
+  nav.navbar {
+    padding: 0 18px;
+  }
+
+  .nav-logo {
+    height: 72px;
+  }
+
+  .nav-right {
+    gap: 10px;
+    flex: 1;
+    justify-content: flex-end;
+  }
+
+  .nav-provider-text {
+    display: none;
+  }
+
+  .nav-provider-logo {
+    width: 40px;
+    height: 40px;
+  }
+
+  .nav-search-wrap {
+    flex: 1;
+    max-width: 220px;
+  }
+
+  .nav-search-wrap input {
+    width: 100%;
+    min-width: 0;
+    padding: 10px 16px 10px 38px;
+  }
+
+  .nav-search-wrap input:focus {
+    width: 100%;
+  }
+
+  .hamburger {
+    display: flex;
+  }
+
+  .sidebar {
+    display: none;
+  }
+
+  .page-body {
+    display: block;
+  }
+
+  .main {
+    padding: 20px 16px;
+  }
+
+  .page-header {
+    margin-bottom: 20px;
+  }
+
+  .page-header h1 {
+    font-size: 28px;
+    line-height: 1.2;
+  }
+
+  /* ── STATS 2x2 GRID ── */
+  .stats-row {
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+
+  .stat-card {
+    padding: 18px 16px;
+  }
+
+  .stat-value {
+    font-size: 32px;
+  }
+
+  .stat-label {
+    font-size: 11px;
+  }
+
+  .stat-sub {
+    font-size: 11px;
+  }
+
+  /* ── MAIN CONTENT STACKS ── */
+  .dash-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .right-col {
+    gap: 16px;
+  }
+
+  .panel-header {
+    padding: 16px 18px 12px;
+  }
+
+  .panel-title {
+    font-size: 18px;
+  }
+
+  .order-row,
+  .item-row {
+    padding: 14px 16px;
+  }
+
+  .order-logo,
+  .item-thumb {
+    width: 52px;
+    height: 52px;
+  }
+
+  .overview-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    padding: 16px;
+  }
+
+  .overview-value {
+    font-size: 28px;
+  }
+
+  .actions-body {
+    padding: 16px;
+  }
+
+  .action-btn {
+    padding: 13px;
+    font-size: 14px;
+  }
+}
+@media (max-width: 768px) {
+  .nav-search-wrap {
+    display: none;
+  }
+}
   </style>
 </head>
 <body>
 
-  <nav class="navbar">
-    <div class="nav-left">
-      <img class="nav-logo" src="../../images/Replate-white.png" alt="RePlate"/>
+ <nav class="navbar">
+  <div class="nav-left">
+    <img class="nav-logo" src="../../images/Replate-white.png" alt="RePlate"/>
+  </div>
+
+  <div class="nav-right">
+    <div class="nav-search-wrap" id="searchWrap">
+      <svg class="search-icon" width="16" height="16" fill="none" stroke="#fff" stroke-width="2" viewBox="0 0 24 24">
+        <circle cx="11" cy="11" r="8"/>
+        <path d="M21 21l-4.35-4.35"/>
+      </svg>
+      <input type="text" id="searchInput" placeholder="Search items ..." autocomplete="off"/>
+      <div class="search-dropdown" id="searchDropdown"></div>
     </div>
-    <div class="nav-right">
 
-      <!-- ── SEARCH ── -->
-      <div class="nav-search-wrap" id="searchWrap">
-        <svg class="search-icon" width="16" height="16" fill="none" stroke="#fff" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
-        <input type="text" id="searchInput" placeholder="Search items ..." autocomplete="off"/>
-        <div class="search-dropdown" id="searchDropdown"></div>
-      </div>
-
-      <div class="nav-provider-info">
-        <div class="nav-provider-logo">
-          <?php if ($providerLogo): ?>
-            <img src="<?= htmlspecialchars($providerLogo) ?>" alt=""/>
-          <?php else: ?>
-            <?= mb_strtoupper(mb_substr($providerName, 0, 1)) ?>
-          <?php endif; ?>
-        </div>
-        <div class="nav-provider-text">
-          <span class="nav-provider-name"><?= htmlspecialchars($providerName) ?></span>
-          <span class="nav-provider-email"><?= htmlspecialchars($providerEmail) ?></span>
-        </div>
+    <div class="nav-provider-info">
+      <div class="nav-provider-logo">
+        <?php if ($providerLogo): ?>
+          <img src="<?= htmlspecialchars($providerLogo) ?>" alt=""/>
+        <?php else: ?>
+          <?= mb_strtoupper(mb_substr($providerName, 0, 1)) ?>
+        <?php endif; ?>
       </div>
     </div>
-  </nav>
+
+    <button id="hamburger" class="hamburger" onclick="toggleMobileMenu()" aria-label="Open menu">
+      <span></span>
+      <span></span>
+      <span></span>
+    </button>
+  </div>
+</nav>
+<div class="mobile-menu" id="mobileMenu">
+    <div class="mobile-search">
+    <svg width="18" height="18" fill="none" stroke="#fff" stroke-width="2" viewBox="0 0 24 24">
+      <circle cx="11" cy="11" r="7"></circle>
+      <path d="m21 21-4.3-4.3"></path>
+    </svg>
+    <input type="text" id="mobileSearchInput" placeholder="Search items ..." />
+  </div>
+  <a href="provider-dashboard.php" onclick="closeMobileMenu()">Dashboard</a>
+  <a href="provider-items.php" onclick="closeMobileMenu()">Items</a>
+  <a href="provider-orders.php" onclick="closeMobileMenu()">Orders</a>
+  <a href="provider-profile.php" onclick="closeMobileMenu()">Profile</a>
+  <a href="provider-dashboard.php?logout=1" onclick="closeMobileMenu()">Log out</a>
+
+
+</div>
 
   <div class="page-body">
     <aside class="sidebar">
@@ -640,5 +888,28 @@ function timeAgo($utcDate): string {
       return d.innerHTML;
     }
   </script>
+  <script>
+function toggleMobileMenu() {
+  const menu = document.getElementById('mobileMenu');
+  const btn = document.getElementById('hamburger');
+  menu.classList.toggle('open');
+  btn.classList.toggle('open');
+  document.body.style.overflow = menu.classList.contains('open') ? 'hidden' : '';
+}
+
+function closeMobileMenu() {
+  document.getElementById('mobileMenu').classList.remove('open');
+  document.getElementById('hamburger').classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+document.getElementById('mobileSearchInput')?.addEventListener('input', function () {
+  const desktopSearch = document.getElementById('searchInput');
+  if (desktopSearch) {
+    desktopSearch.value = this.value;
+    desktopSearch.dispatchEvent(new Event('input'));
+  }
+});
+</script>
 </body>
 </html>

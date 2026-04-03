@@ -48,17 +48,27 @@ $categoryName = $category['name'];
 }
 }
 
-$locationName = 'No pickup location';
+$locationName = 'Pickup location';
 $locationAddress = '';
 $locationCity = '';
+$locationZip = '';
+$locationLat = null;
+$locationLng = null;
+
+$pickupLocation = null;
 
 if (!empty($item['pickupLocationId'])) {
-$pickupLocation = $locationModel->findById((string)$item['pickupLocationId']);
-if ($pickupLocation) {
-$locationName = $pickupLocation['locationName'] ?? 'Pickup location';
-$locationAddress = $pickupLocation['address'] ?? '';
-$locationCity = $pickupLocation['city'] ?? '';
+    $pickupLocation = $locationModel->findById((string)$item['pickupLocationId']);
 }
+
+if ($pickupLocation) {
+    $locationName = $pickupLocation['locationName'] ?? ($pickupLocation['label'] ?? 'Pickup location');
+    $locationAddress = $pickupLocation['street'] ?? '';
+    $locationCity = $pickupLocation['city'] ?? '';
+    $locationZip = $pickupLocation['zip'] ?? '';
+
+    $locationLat = $pickupLocation['lat'] ?? ($pickupLocation['coordinates']['lat'] ?? null);
+    $locationLng = $pickupLocation['lng'] ?? ($pickupLocation['coordinates']['lng'] ?? null);
 }
 
 $itemName = $item['itemName'] ?? 'Item';
@@ -73,93 +83,108 @@ $itemPrice = (($item['listingType'] ?? '') === 'donate')
 ? 'Donation'
 : number_format((float)($item['price'] ?? 0), 2) . ' SAR';
 
+$quantity = (int)($item['quantity'] ?? 1);
+if ($quantity < 1) {
+    $quantity = 1;
+}
+
 $expiryDate = '';
 if (!empty($item['expiryDate']) && $item['expiryDate'] instanceof MongoDB\BSON\UTCDateTime) {
 $expiryDate = $item['expiryDate']->toDateTime()->format('Y-m-d');
 }
 
+$today = date('Y-m-d');
+
 $pickupTimes = $item['pickupTimes'] ?? [];
 $errors = [];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-$itemName = trim($_POST['itemName'] ?? '');
-$itemDescription = trim($_POST['description'] ?? '');
-$listingType = trim($_POST['listingType'] ?? '');
-$price = trim($_POST['price'] ?? '');
-$categoryId = trim($_POST['categoryId'] ?? '');
-$pickupLocationId = trim($_POST['pickupLocationId'] ?? '');
-$expiryDateInput = trim($_POST['expiryDate'] ?? '');
-$pickupDateInput = trim($_POST['pickupDate'] ?? '');
 
-$pickupTimes = $_POST['pickupTimes'] ?? [];
-if (!is_array($pickupTimes)) {
-$pickupTimes = [];
-}
-$pickupTimes = array_values(array_filter(array_map('trim', $pickupTimes)));
+    $itemName = trim($_POST['itemName'] ?? '');
+    $itemDescription = trim($_POST['description'] ?? '');
+    $listingType = trim($_POST['listingType'] ?? '');
+    $price = trim($_POST['price'] ?? '');
+    $categoryId = trim($_POST['categoryId'] ?? '');
+    $quantity = (int)($_POST['quantity'] ?? ($item['quantity'] ?? 1));
+    $pickupLocationId = trim($_POST['pickupLocationId'] ?? '');
+    $expiryDateInput = trim($_POST['expiryDate'] ?? '');
+    $pickupDateInput = trim($_POST['pickupDate'] ?? '');
 
-$itemName = ($itemName !== '') ? $itemName : ($item['itemName'] ?? '');
-$itemDescription = ($itemDescription !== '') ? $itemDescription : ($item['description'] ?? '');
-$listingType = ($listingType !== '') ? $listingType : ($item['listingType'] ?? 'donate');
-$categoryId = ($categoryId !== '') ? $categoryId : (string)($item['categoryId'] ?? '');
-$pickupLocationId = ($pickupLocationId !== '') ? $pickupLocationId : (string)($item['pickupLocationId'] ?? '');
-$pickupTimes = !empty($pickupTimes) ? $pickupTimes : ($item['pickupTimes'] ?? []);
-if ($listingType === 'sell' && ($price === '' || (float)$price <= 0)) {
-$errors['price'] = 'Price is required when type is Sell.';
-}
-if ($expiryDateInput === '' && !empty($item['expiryDate'])) {
-$expiryDateInput = $item['expiryDate']->toDateTime()->format('Y-m-d');
-}
+    if ($quantity < 1) {
+        $quantity = 1;
+    }
 
-if ($pickupDateInput === '' && !empty($item['pickupDate'])) {
-$pickupDateInput = $item['pickupDate']->toDateTime()->format('Y-m-d');
-}
+    $pickupTimes = $_POST['pickupTimes'] ?? [];
+    if (!is_array($pickupTimes)) {
+        $pickupTimes = [];
+    }
+    $pickupTimes = array_values(array_filter(array_map('trim', $pickupTimes)));
 
-if ($listingType === 'donate') {
-$price = 0;
-} else {
-$price = ($price !== '') ? (float)$price : (float)($item['price'] ?? 0);
-}
+    $itemName = ($itemName !== '') ? $itemName : ($item['itemName'] ?? '');
+    $itemDescription = ($itemDescription !== '') ? $itemDescription : ($item['description'] ?? '');
+    $listingType = ($listingType !== '') ? $listingType : ($item['listingType'] ?? 'donate');
+    $categoryId = ($categoryId !== '') ? $categoryId : (string)($item['categoryId'] ?? '');
+    $pickupLocationId = ($pickupLocationId !== '') ? $pickupLocationId : (string)($item['pickupLocationId'] ?? '');
+    $pickupTimes = !empty($pickupTimes) ? $pickupTimes : ($item['pickupTimes'] ?? []);
 
+    if ($listingType === 'sell' && ($price === '' || (float)$price <= 0)) {
+        $errors['price'] = 'Price is required when type is Sell.';
+    }
 
-$newPhotoPath = $item['photoUrl'] ?? '';
-if (isset($_FILES['itemPhoto']) && $_FILES['itemPhoto']['error'] === UPLOAD_ERR_OK) {
-$uploadDir = '../../uploads/items/';
-if (!is_dir($uploadDir)) {
-mkdir($uploadDir, 0777, true);
-}
+    if ($expiryDateInput === '' && !empty($item['expiryDate'])) {
+        $expiryDateInput = $item['expiryDate']->toDateTime()->format('Y-m-d');
+    }
 
-$ext = strtolower(pathinfo($_FILES['itemPhoto']['name'], PATHINFO_EXTENSION));
-$allowed = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+    if ($pickupDateInput === '' && !empty($item['pickupDate'])) {
+        $pickupDateInput = $item['pickupDate']->toDateTime()->format('Y-m-d');
+    }
 
-if (in_array($ext, $allowed)) {
-$fileName = time() . '_' . basename($_FILES['itemPhoto']['name']);
-$targetPath = $uploadDir . $fileName;
+    if ($listingType === 'donate') {
+        $price = 0;
+    } else {
+        $price = ($price !== '') ? (float)$price : (float)($item['price'] ?? 0);
+    }
 
-if (move_uploaded_file($_FILES['itemPhoto']['tmp_name'], $targetPath)) {
-$newPhotoPath = '../../uploads/items/' . $fileName;
-}
-}
-}
+    $newPhotoPath = $item['photoUrl'] ?? '';
+    if (isset($_FILES['itemPhoto']) && $_FILES['itemPhoto']['error'] === UPLOAD_ERR_OK) {
+        $uploadDir = '../../uploads/items/';
+        if (!is_dir($uploadDir)) {
+            mkdir($uploadDir, 0777, true);
+        }
 
-if (empty($errors)) {
-$itemModel->updateById($itemId, [
-'itemName' => $itemName,
-'description' => $itemDescription,
-'listingType' => $listingType,
-'price' => ($listingType === 'donate') ? 0 : (float)$price,
-'categoryId' => new MongoDB\BSON\ObjectId($categoryId),
-'pickupLocationId' => new MongoDB\BSON\ObjectId($pickupLocationId),
-'expiryDate' => new MongoDB\BSON\UTCDateTime(strtotime($expiryDateInput) * 1000),
-'pickupDate' => new MongoDB\BSON\UTCDateTime(strtotime($pickupDateInput) * 1000),
-'pickupTimes' => $pickupTimes,
-'photoUrl' => $newPhotoPath,
-]);
+        $ext = strtolower(pathinfo($_FILES['itemPhoto']['name'], PATHINFO_EXTENSION));
+        $allowed = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
 
-header('Location: provider-item-details.php?id=' . urlencode($itemId));
-exit;
-} else {
-$editMode = true;
-}
+        if (in_array($ext, $allowed)) {
+            $fileName = time() . '_' . basename($_FILES['itemPhoto']['name']);
+            $targetPath = $uploadDir . $fileName;
+
+            if (move_uploaded_file($_FILES['itemPhoto']['tmp_name'], $targetPath)) {
+                $newPhotoPath = '../../uploads/items/' . $fileName;
+            }
+        }
+    }
+
+    if (empty($errors)) {
+        $itemModel->updateById($itemId, [
+            'itemName' => $itemName,
+            'description' => $itemDescription,
+            'listingType' => $listingType,
+            'price' => ($listingType === 'donate') ? 0 : (float)$price,
+            'categoryId' => new MongoDB\BSON\ObjectId($categoryId),
+            'quantity' => $quantity,
+            'pickupLocationId' => new MongoDB\BSON\ObjectId($pickupLocationId),
+            'expiryDate' => new MongoDB\BSON\UTCDateTime(strtotime($expiryDateInput) * 1000),
+            'pickupDate' => new MongoDB\BSON\UTCDateTime(strtotime($pickupDateInput) * 1000),
+            'pickupTimes' => $pickupTimes,
+            'photoUrl' => $newPhotoPath,
+        ]);
+
+        header('Location: provider-item-details.php?id=' . urlencode($itemId));
+        exit;
+    } else {
+        $editMode = true;
+    }
 }
 
 if (isset($_GET['delete']) && !empty($itemId)) {
@@ -167,12 +192,14 @@ $itemModel->deleteById($itemId);
 header('Location: provider-items.php');
 exit;
 }
+
 ?>
 
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <title>RePlate – Edit Item</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
   <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: 'Playfair Display', serif; background: #f4f7fc; min-height: 100vh; display: flex; flex-direction: column; }
@@ -587,7 +614,39 @@ display:block;
 .edit-textarea.error{
 border:1.5px solid #d64545 !important;
 }
+.location-map{
+width: 100%;
+height: 160px;
+border-radius: 16px;
+overflow: hidden;
+margin-bottom: 10px;
+border: 1px solid #d7e1ee;
+}
 
+#itemPickupMap{
+width: 100%;
+height: 100%;
+}
+.page-header {
+  margin-bottom: 28px;
+  max-width: 900px;
+  margin: 0 auto 20px auto;
+}
+
+.page-header h1 {
+  font-size: 34px;
+  font-weight: 700;
+  font-family: 'Playfair Display', serif;
+  background: linear-gradient(90deg, #143496 0%, #66a1d9 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  display: inline-block;
+}
+
+.page-header h1 span {
+  -webkit-text-fill-color: transparent;
+}
     </style>
 </head>
 <body>
@@ -638,16 +697,16 @@ border:1.5px solid #d64545 !important;
           Profile
         </a>
       </nav>
-      <button class="sidebar-logout" onclick="window.location.href='provider-dashboard.php?logout=1'">Log out</button>
+      <button class="sidebar-logout" onclick="window.location.href='provider-dashboard.php?logout=1'">Logout</button>
       <div class="sidebar-footer">
         <div class="sidebar-footer-social">
           <a href="#" class="sidebar-social-icon">in</a>
           <a href="#" class="sidebar-social-icon">&#120143;</a>
           <a href="#" class="sidebar-social-icon">&#9834;</a>
-         
+          
         </div>
         <div class="sidebar-footer-copy">
-          <span>©️ 2026</span>
+          <span>© 2026</span>
           <img src="../../images/Replate-white.png" alt="" style="height:40px;object-fit:contain;opacity:0.45;"/>
           <span>All rights reserved.</span>
         </div>
@@ -706,17 +765,23 @@ border:1.5px solid #d64545 !important;
 </p>
 
 <p>
+<strong>Quantity:</strong><br>
+<input type="number" name="quantity" min="1" step="1" class="edit-input"
+value="<?= htmlspecialchars((string)($_POST['quantity'] ?? $quantity)) ?>">
+<?php if (isset($errors['quantity'])): ?>
+    <span class="field-error show"><?= htmlspecialchars($errors['quantity']) ?></span>
+<?php endif; ?>
+</p>
+
+<p>
 <strong>Expiry date:</strong><br>
 <input
 type="date"
 name="expiryDate"
-min="2026-01-01"
+id="expiryDate"
 class="edit-input <?= isset($errors['expiryDate']) ? 'error' : '' ?>"
-value="<?= htmlspecialchars(
-(isset($_POST['expiryDate']))
-? $_POST['expiryDate']
-: (($expiryDate >= '2026-01-01') ? $expiryDate : '')
-) ?>"
+min="<?= $today ?>"
+value="<?= htmlspecialchars($_POST['expiryDate'] ?? $expiryDate) ?>"
 >
 <?php if (isset($errors['expiryDate'])): ?>
 <span class="field-error show"><?= htmlspecialchars($errors['expiryDate']) ?></span>
@@ -729,13 +794,10 @@ value="<?= htmlspecialchars(
 <input
 type="date"
 name="pickupDate"
-min="2026-01-01"
+id="pickupDate"
 class="edit-input <?= isset($errors['pickupDate']) ? 'error' : '' ?>"
-value="<?= htmlspecialchars(
-(isset($_POST['pickupDate']))
-? $_POST['pickupDate']
-: (($pickupDate >= '2026-01-01') ? $pickupDate : '')
-) ?>"
+min="<?= $today ?>"
+value="<?= htmlspecialchars($_POST['pickupDate'] ?? $pickupDate) ?>"
 >
 <?php if (isset($errors['pickupDate'])): ?>
 <span class="field-error show"><?= htmlspecialchars($errors['pickupDate']) ?></span>
@@ -747,13 +809,19 @@ value="<?= htmlspecialchars(
 <strong>Pickup location:</strong><br>
 <select name="pickupLocationId" class="edit-input">
 <option value="">Select pickup location</option>
+
 <?php foreach ($locationModel->getByProvider($providerId) as $loc): ?>
-<option value="<?= htmlspecialchars((string)$loc['_id']) ?>"
-<?= ((string)($_POST['pickupLocationId'] ?? (string)$item['pickupLocationId']) === (string)$loc['_id']) ? 'selected' : '' ?>>
+
+<option 
+value="<?= (string)$loc['_id'] ?>"
+data-lat="<?= $loc['lat'] ?? ($loc['coordinates']['lat'] ?? '') ?>"
+data-lng="<?= $loc['lng'] ?? ($loc['coordinates']['lng'] ?? '') ?>"
+<?= ((string)($item['pickupLocationId'] ?? '') == (string)$loc['_id']) ? 'selected' : '' ?>
+>
 <?= htmlspecialchars(trim(implode(' - ', array_filter([
-$loc['locationName'] ?? '',
-$loc['address'] ?? '',
-$loc['city'] ?? ''
+    $loc['locationName'] ?? ($loc['label'] ?? ''),
+    $loc['street'] ?? '',
+    $loc['city'] ?? ''
 ])))) ?>
 </option>
 <?php endforeach; ?>
@@ -819,8 +887,15 @@ endif;
 <p><strong>Type:</strong> <?= htmlspecialchars($itemType) ?></p>
 <p><strong>Price:</strong> <?= htmlspecialchars($itemPrice) ?></p>
 <p><strong>Category:</strong> <?= htmlspecialchars($categoryName) ?></p>
-<p><strong>Expiry date:</strong> <?= htmlspecialchars($expiryDate) ?></p>
-<p><strong>Pickup date:</strong> <?= htmlspecialchars($pickupDate) ?></p>
+<p><strong>Quantity:</strong> <?= htmlspecialchars((string)$quantity) ?></p>
+<p><strong>Expiry date:</strong> <?= htmlspecialchars($expiryDate ? date('d/m/Y', strtotime($expiryDate)) : '') ?></p>
+<p><strong>Pickup date:</strong> <?= htmlspecialchars($pickupDate ? date('d/m/Y', strtotime($pickupDate)) : '') ?></p>
+<p><strong>Branch:</strong> <?= htmlspecialchars($locationName) ?></p>
+<p><strong>Address:</strong> <?= htmlspecialchars(trim(implode(', ', array_filter([
+    $locationAddress,
+    $locationCity,
+    $locationZip
+])))) ?></p>
 
 <div class="pickup-times-block">
 <p><strong>Pickup times:</strong></p>
@@ -898,14 +973,19 @@ Edit
 
 <div class="location-card">
 
-<?php if (!empty($itemPhoto)): ?>
-<img src="<?= htmlspecialchars($itemPhoto) ?>" alt="<?= htmlspecialchars($itemName) ?>">
+<?php if ($locationLat !== null && $locationLng !== null): ?>
+<div class="location-map">
+<div id="itemPickupMap"></div>
+</div>
 <?php else: ?>
-<div class="location-placeholder">No image</div>
+<div class="location-placeholder">No map available</div>
 <?php endif; ?>
 
 <p><?= htmlspecialchars($locationName) ?></p>
-<p><?= htmlspecialchars(trim($locationAddress . ', ' . $locationCity, ', ')) ?></p>
+<p><?= htmlspecialchars(trim(implode(', ', array_filter([$locationAddress, $locationCity, $locationZip])))) ?></p>
+<?php if ($locationLat === null || $locationLng === null): ?>
+<p style="color:#7a8fa8;font-size:13px;">Location not available for this branch.</p>
+<?php endif; ?>
 
 </div>
 
@@ -945,6 +1025,61 @@ document.getElementById('editMinute').value = '';
 document.getElementById('editAmPm').value = 'AM';
 }
 </script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<?php if ($locationLat !== null && $locationLng !== null): ?>
+<script>
+const itemPickupMap = L.map('itemPickupMap', {
+    zoomControl: true,
+    dragging: true,
+    scrollWheelZoom: false
+}).setView([<?= (float)$locationLat ?>, <?= (float)$locationLng ?>], 14);
+
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap contributors'
+}).addTo(itemPickupMap);
+
+window.marker = L.marker([<?= (float)$locationLat ?>, <?= (float)$locationLng ?>]).addTo(itemPickupMap);
+
+setTimeout(() => {
+    itemPickupMap.invalidateSize();
+}, 200);
+</script>
+<?php endif; ?>
+
+<script>
+document.querySelector('[name="listingType"]')?.addEventListener('change', function () {
+    const priceInput = document.querySelector('[name="price"]');
+    if (this.value === 'donate') {
+        priceInput.value = 0;
+        priceInput.disabled = true;
+    } else {
+        priceInput.disabled = false;
+    }
+});
+
+document.getElementById('pickupLocationId')?.addEventListener('change', function () {
+    const selectedOption = this.options[this.selectedIndex];
+
+    const lat = selectedOption.getAttribute('data-lat');
+    const lng = selectedOption.getAttribute('data-lng');
+
+    if (!lat || !lng) return;
+
+    if (typeof itemPickupMap !== 'undefined') {
+        itemPickupMap.setView([parseFloat(lat), parseFloat(lng)], 14);
+
+        if (window.marker) {
+            itemPickupMap.removeLayer(window.marker);
+        }
+
+        window.marker = L.marker([lat, lng]).addTo(itemPickupMap);
+    } else {
+        location.reload();
+    }
+});
+</script>
 
 </body>
 </html>
+  

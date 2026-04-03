@@ -278,6 +278,164 @@ try {
     .success-banner { background: #e8f7ee; border: 1.5px solid #a8d8b8; border-radius: 12px; padding: 14px 22px; color: #1a6b3a; font-size: 15px; font-weight: 600; margin-bottom: 28px; display: flex; align-items: center; gap: 10px; }
     .btn-delete { background: transparent; color: #c0392b; border: 2px solid #c0392b; border-radius: 50px; padding: 10px 24px; font-size: 14px; font-weight: 700; font-family: 'Playfair Display', serif; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; transition: background 0.2s, color 0.2s; }
     .btn-delete:hover { background: #c0392b; color: #fff; }
+    /* ══════════════════════════════════════
+   MOBILE HEADER RESPONSIVE
+══════════════════════════════════════ */
+.hamburger {
+  display: none;
+  flex-direction: column;
+  gap: 5px;
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: 6px;
+}
+
+.hamburger span {
+  display: block;
+  width: 24px;
+  height: 2.5px;
+  background: #fff;
+  border-radius: 2px;
+  transition: all 0.3s;
+}
+
+.hamburger.open span:nth-child(1) {
+  transform: translateY(7.5px) rotate(45deg);
+}
+
+.hamburger.open span:nth-child(2) {
+  opacity: 0;
+}
+
+.hamburger.open span:nth-child(3) {
+  transform: translateY(-7.5px) rotate(-45deg);
+}
+
+.mobile-menu {
+  display: none;
+  position: fixed;
+  inset: 0;
+  top: 72px;
+  background: linear-gradient(180deg, #1a3a6b 0%, #2255a4 100%);
+  z-index: 99;
+  flex-direction: column;
+  padding: 32px 28px;
+  gap: 0;
+}
+
+.mobile-menu.open {
+  display: flex;
+}
+
+.mobile-menu a {
+  color: rgba(255,255,255,0.85);
+  font-size: 22px;
+  font-weight: 700;
+  font-family: 'Playfair Display', serif;
+  padding: 18px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.12);
+  text-decoration: none;
+}
+
+.mobile-menu a:hover {
+  color: #fff;
+}
+
+.mobile-search {
+  margin-top: 24px;
+  position: relative;
+}
+
+.mobile-search svg {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.mobile-search input {
+  width: 100%;
+  background: rgba(255,255,255,0.15);
+  border: 1.5px solid rgba(255,255,255,0.4);
+  border-radius: 50px;
+  padding: 12px 16px 12px 40px;
+  color: #fff;
+  font-size: 15px;
+  outline: none;
+  font-family: 'Playfair Display', serif;
+}
+
+.mobile-search input::placeholder {
+  color: rgba(255,255,255,0.6);
+}
+
+@media (max-width: 768px) {
+  nav.navbar {
+    padding: 0 18px;
+  }
+
+  .nav-logo {
+    height: 72px;
+  }
+
+  .nav-center {
+    display: none;
+  }
+
+  .nav-search-wrap {
+    display: none;
+  }
+
+  .hamburger {
+    display: flex;
+  }
+
+  .nav-right {
+    gap: 10px;
+  }
+}
+@media (max-width: 768px) {
+  .sidebar {
+    display: none;
+  }
+
+  .page-body {
+    display: block;
+  }
+}
+@media (max-width: 768px) {
+  .sidebar {
+    display: none;
+  }
+
+  .page-body {
+    display: block;
+  }
+
+  .main {
+    padding: 20px 16px;
+  }
+
+  .dashboard-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+
+  .profile-col,
+  .notif-col {
+    width: 100%;
+  }
+
+  .notif-panel {
+    position: static;
+    top: auto;
+    width: 100%;
+  }
+}
   </style>
 </head>
 <body>
@@ -307,6 +465,7 @@ try {
         <button class="nav-bell" id="bellBtn" onclick="toggleNotifDropdown()">
           <svg width="18" height="18" fill="none" stroke="#fff" stroke-width="1.8" viewBox="0 0 24 24"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
         </button>
+        
         <?php if ($unreadCount > 0): ?>
         <span class="bell-badge" id="bellBadge"><?= $unreadCount ?></span>
         <?php else: ?><span class="bell-badge" id="bellBadge" style="display:none">0</span><?php endif; ?>
@@ -364,13 +523,35 @@ try {
           <?php endif; ?>
           </div>
         </div>
+
       </div>
       <a href="customer-profile.php" class="nav-avatar">
         <svg width="20" height="20" fill="none" stroke="#fff" stroke-width="1.8" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
       </a>
+      <button id="hamburger" class="hamburger" onclick="toggleMobileMenu()" aria-label="Open menu">
+  <span></span>
+  <span></span>
+  <span></span>
+</button>
     </div>
   </nav>
+<div class="mobile-menu" id="mobileMenu">
+    <div class="mobile-search">
+    <svg width="18" height="18" fill="none" stroke="#fff" stroke-width="2" viewBox="0 0 24 24">
+      <circle cx="11" cy="11" r="7"></circle>
+      <path d="m21 21-4.3-4.3"></path>
+    </svg>
+    <input type="text" id="mobileSearchInput" placeholder="Search products or providers..." />
+  </div>
+  <a href="../shared/landing.php" onclick="closeMobileMenu()">Home</a>
+  <a href="../customer/customer-profile.php" onclick="closeMobileMenu()">Profile</a>
+  <a href="../customer/favourites.php" onclick="closeMobileMenu()">Favourites</a>
+  <a href="../customer/orders.php" onclick="closeMobileMenu()">Orders</a>
+  <a href="../customer/contact-us.php" onclick="closeMobileMenu()">Contact Us</a>
+  <a href="?logout=1" onclick="closeMobileMenu()">Log out</a>
 
+
+</div>
   <div class="page-body">
     <aside class="sidebar">
       <p class="sidebar-welcome">Welcome Back ,</p>
@@ -800,5 +981,28 @@ try {
       input.type = input.type === 'password' ? 'text' : 'password';
     }
   </script>
+  <script>
+function toggleMobileMenu() {
+  const menu = document.getElementById('mobileMenu');
+  const btn  = document.getElementById('hamburger');
+  menu.classList.toggle('open');
+  btn.classList.toggle('open');
+  document.body.style.overflow = menu.classList.contains('open') ? 'hidden' : '';
+}
+
+function closeMobileMenu() {
+  document.getElementById('mobileMenu').classList.remove('open');
+  document.getElementById('hamburger').classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+document.getElementById('mobileSearchInput')?.addEventListener('input', function() {
+  const desktopSearch = document.getElementById('searchInput');
+  if (desktopSearch) {
+    desktopSearch.value = this.value;
+    desktopSearch.dispatchEvent(new Event('input'));
+  }
+});
+</script>
 </body>
 </html>

@@ -46,7 +46,21 @@ if ($categoryId) {
         $items = $itemModel->findAll([]);
     } catch (Throwable) {}
 }
-
+// ── Filter out unavailable and expired items ──
+$now = time();
+$items = array_values(array_filter($items, function($i) use ($now) {
+    if (empty($i['isAvailable'])) return false;
+    if ((int)($i['quantity'] ?? 0) <= 0) return false;
+    if (!empty($i['expiryDate'])) {
+        try {
+            $exp = $i['expiryDate'] instanceof MongoDB\BSON\UTCDateTime
+                ? $i['expiryDate']->toDateTime()->getTimestamp()
+                : strtotime((string)$i['expiryDate']);
+            if ($exp < $now) return false;
+        } catch (Throwable) {}
+    }
+    return true;
+}));
 // Apply listing type filter (All / Donation / Buying)
 if ($type !== 'all') {
     $items = array_values(array_filter($items, fn($i) => ($i['listingType'] ?? '') === $type));
