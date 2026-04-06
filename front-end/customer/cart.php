@@ -22,6 +22,15 @@ $customerId = $_SESSION['customerId'];
 $customer = (new Customer())->findById($customerId);
 $firstName = explode(' ', trim($customer['fullName'] ?? ($_SESSION['userName'] ?? 'Customer')))[0] ?: 'Customer';
 
+// ── Cart count ──
+$_cartForCount = (new Cart())->getOrCreate($customerId);
+$cartCount = array_sum(array_map(fn($ci) => (int)($ci['quantity'] ?? 1), (array)($_cartForCount['cartItems'] ?? [])));
+
+// ── Full notifications ──
+$_notifModel  = new Notification();
+$notifications = (array)$_notifModel->getByCustomer($customerId);
+$unreadCount   = $_notifModel->getUnreadCount($customerId);
+
 // ── Expiry alerts ──
 $expiryAlerts = [];
 $now  = time(); $soon = $now + 48 * 3600;
@@ -41,14 +50,13 @@ function rp_money($n){ return number_format((float)$n, 2); }
 function rp_footer(){ ?>
 <footer>
   <div class="footer-top">
-    <a href="#" class="social-icon">in</a>
-    <a href="#" class="social-icon">&#120143;</a>
-    <a href="#" class="social-icon">&#9834;</a>
-    <div class="footer-divider"></div>
-    <div class="footer-brand">
-      <img src="../../images/Replate-white.png" alt="RePlate" style="height:24px;object-fit:contain;" />
-      <span>RePlate</span>
+    <div style="display:flex;align-items:center;gap:10px;">
+      <a class="social-icon" href="#">in</a>
+      <a class="social-icon" href="#">&#120143;</a>
+      <a class="social-icon" href="#">&#9834;</a>
     </div>
+    <div class="footer-divider"></div>
+    <img src="../../images/Replate-white.png" alt="Replate" style="height:80px;object-fit:contain;" />
     <div class="footer-divider"></div>
     <div class="footer-email">
       <svg width="16" height="16" fill="none" stroke="rgba(255,255,255,0.85)" stroke-width="2" viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M2 7l10 7 10-7"/></svg>
@@ -57,19 +65,26 @@ function rp_footer(){ ?>
   </div>
   <div class="footer-bottom">
     <span>© 2026</span>
-    <img src="../../images/Replate-white.png" alt="" style="height:15px;object-fit:contain;opacity:0.8;"/>
+    <img src="../../images/Replate-white.png" alt="" style="height:50px;object-fit:contain;"/>
     <span>All rights reserved.</span>
   </div>
 </footer>
 <?php }
 
-function rp_top_header($active='') { global $alertCount, $expiryAlerts; ?>
+
+function rp_top_header($active='') {
+    global $cartCount, $notifications, $unreadCount; ?>
 <nav>
   <div class="nav-left">
     <img class="nav-logo" src="../../images/Replate-white.png" alt="RePlate Logo" />
-    <a href="../customer/cart.php" class="nav-cart">
-      <img src="../../images/Shopping cart.png" alt="Cart" style="width:40px;height:40px;object-fit:contain;" />
-    </a>
+    <div class="nav-cart-wrap">
+      <a href="../customer/cart.php" class="nav-cart">
+        <img src="../../images/Shopping cart.png" alt="Cart" style="width:40px;height:40px;object-fit:contain;" />
+      </a>
+      <?php if ($cartCount > 0): ?>
+      <span class="cart-badge"><?= $cartCount ?></span>
+      <?php endif; ?>
+    </div>
   </div>
   <div class="nav-center">
     <a href="../shared/landing.php" class="<?= $active==='home'?'active':'' ?>">Home Page</a>
@@ -88,31 +103,70 @@ function rp_top_header($active='') { global $alertCount, $expiryAlerts; ?>
       <button class="nav-bell" type="button" onclick="toggleNotifDropdown()">
         <svg width="18" height="18" fill="none" stroke="#fff" stroke-width="1.8" viewBox="0 0 24 24"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
       </button>
-      <?php if ($alertCount > 0): ?><span class="bell-badge"><?= $alertCount ?></span><?php endif; ?>
+      <?php if ($unreadCount > 0): ?>
+      <span class="bell-badge" id="bellBadge"><?= $unreadCount ?></span>
+      <?php endif; ?>
       <div class="notif-dropdown" id="notifDropdown">
         <div class="notif-header">
-          <span class="notif-header-title">⏰ Expiring Soon</span>
-          <span style="font-size:12px;color:#b0c4d8;"><?= $alertCount ?> alert<?= $alertCount!==1?'s':'' ?></span>
+          <span class="notif-header-title">Notifications</span>
+          <?php if ($unreadCount > 0): ?>
+          <button class="notif-mark-all" onclick="markAllRead()">Mark all read</button>
+          <?php endif; ?>
         </div>
-        <?php if (empty($expiryAlerts)): ?>
+        <div class="notif-list">
+        <?php if (empty($notifications)): ?>
         <div class="notif-empty">
-          <svg width="32" height="32" fill="none" stroke="#c8d8ee" stroke-width="1.5" viewBox="0 0 24 24" style="margin:0 auto 8px;display:block;"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
-          No expiry alerts right now
+          <svg width="32" height="32" fill="none" stroke="#c8d8ee" stroke-width="1.5" viewBox="0 0 24 24" style="margin:0 auto 10px;display:block;"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+          You're all caught up!
         </div>
         <?php else: ?>
-        <?php foreach ($expiryAlerts as $alert): ?>
-        <div class="notif-item">
-          <div class="notif-icon"><svg width="16" height="16" fill="none" stroke="#e07a1a" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
-          <div class="notif-text">
-            <p class="notif-name"><?= rp_h($alert['name']) ?></p>
-            <div class="notif-meta">
-              <span class="notif-hours">⏳ <?= $alert['hoursLeft'] ?>h left</span>
-              <span class="notif-source-tag <?= $alert['source']==='cart'?'cart':'' ?>"><?= $alert['source']==='cart'?'🛒 Cart':'♥ Favourites' ?></span>
-            </div>
+        <?php foreach ($notifications as $_notif):
+          $_nid   = (string)($_notif['_id'] ?? '');
+          $_ntype = $_notif['type'] ?? 'default';
+          $_nmsg  = $_notif['message'] ?? '';
+          $_nread = (bool)($_notif['isRead'] ?? false);
+          $_ntime = '';
+          if (!empty($_notif['createdAt'])) {
+              $_ts = $_notif['createdAt'] instanceof MongoDB\BSON\UTCDateTime
+                  ? $_notif['createdAt']->toDateTime()->getTimestamp()
+                  : strtotime((string)$_notif['createdAt']);
+              $_diff = time() - $_ts;
+              if ($_diff < 60)        $_ntime = 'Just now';
+              elseif ($_diff < 3600)  $_ntime = floor($_diff/60) . 'm ago';
+              elseif ($_diff < 86400) $_ntime = floor($_diff/3600) . 'h ago';
+              else                    $_ntime = date('d M', $_ts);
+          }
+          $_iconClass = 'default'; $_iconSvg = '';
+          if ($_ntype === 'expiry_alert') {
+              $_urg = str_contains($_notif['message'] ?? '', '[red]') ? 'red' : (str_contains($_notif['message'] ?? '', '[orange]') ? 'orange' : 'yellow');
+              $_urgC = $_urg==='red' ? '#c0392b' : ($_urg==='orange' ? '#e07a1a' : '#d4ac0d');
+              $_iconClass = 'expiry-'.$_urg;
+              $_iconSvg = '<svg width="16" height="16" fill="none" stroke="'.$_urgC.'" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>';
+          } elseif ($_ntype === 'order_placed') {
+              $_iconClass = 'order';
+              $_iconSvg = '<svg width="16" height="16" fill="none" stroke="#1a6b3a" stroke-width="2" viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><polyline points="9 12 11 14 15 10"/></svg>';
+          } elseif ($_ntype === 'order_completed') {
+              $_iconClass = 'order';
+              $_iconSvg = '<svg width="16" height="16" fill="none" stroke="#1a6b3a" stroke-width="2" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>';
+          } elseif ($_ntype === 'pickup_reminder') {
+              $_iconClass = 'pickup';
+              $_iconSvg = '<svg width="16" height="16" fill="none" stroke="#2255a4" stroke-width="2" viewBox="0 0 24 24"><path d="M17.657 16.657L13.414 20.9a2 2 0 01-2.828 0l-4.243-4.243a8 8 0 1111.314 0z"/><circle cx="12" cy="11" r="3"/></svg>';
+          }
+          $_urgClass = $_ntype==='expiry_alert' ? ' urgency-'.($_urg??'yellow') : '';
+          $_nmsgClean = trim(preg_replace('/\[(?:red|orange|yellow|pickup|completed|cancelled)\]\s*/', '', htmlspecialchars($_nmsg)));
+        ?>
+        <div class="notif-item <?= $_nread ? '' : 'unread' ?><?= $_urgClass ?>" data-id="<?= $_nid ?>" onclick="markRead(this)">
+          <div class="notif-icon <?= $_iconClass ?>"><?= $_iconSvg ?></div>
+          <div class="notif-body">
+            <p class="notif-msg"><?= $_nmsgClean ?></p>
+            <span class="notif-time"><?= $_ntime ?></span>
           </div>
+          <?php if (!$_nread): ?><div class="notif-unread-dot"></div><?php endif; ?>
         </div>
         <?php endforeach; ?>
         <?php endif; ?>
+        </div>
+        <div class="notif-footer"><a href="customer-profile.php">View all notifications</a></div>
       </div>
     </div>
     <a href="customer-profile.php" class="nav-avatar">
@@ -124,15 +178,16 @@ function rp_top_header($active='') { global $alertCount, $expiryAlerts; ?>
 </nav>
 <?php }
 
+
 function rp_page_styles(){ ?>
 <style>
 *{box-sizing:border-box}
 html,body{margin:0;padding:0}
-body{background:#e8eef5;color:#1b2f74;font-family:'Playfair Display',serif}
+body{background:#e8eef5;color:#1b2f74;font-family:'Playfair Display',serif;min-height:100vh;display:flex;flex-direction:column;align-items:stretch;}
 a{text-decoration:none}
 
 /* ── NAVBAR ── */
-nav{display:flex;align-items:center;justify-content:space-between;padding:0 48px;height:72px;background:linear-gradient(90deg,#1a3a6b 0%,#2255a4 60%,#3a7bd5 100%);position:sticky;top:0;z-index:100;box-shadow:0 2px 16px rgba(26,58,107,0.18)}
+nav{display:flex;align-items:center;justify-content:space-between;padding:0 48px;height:72px;background:linear-gradient(90deg,#1a3a6b 0%,#2255a4 60%,#3a7bd5 100%);position:sticky;top:0;z-index:10000;box-shadow:0 2px 16px rgba(26,58,107,0.18)}
 .nav-left{display:flex;align-items:center;gap:16px}
 .nav-logo{height:100px}
 .nav-cart{width:40px;height:40px;border-radius:50%;border:2px solid rgba(255,255,255,0.7);display:flex;justify-content:center;align-items:center;cursor:pointer;transition:background .2s;text-decoration:none}
@@ -166,38 +221,21 @@ nav{display:flex;align-items:center;justify-content:space-between;padding:0 48px
 .nav-bell-wrap{position:relative}
 .nav-bell{width:38px;height:38px;border-radius:50%;border:2px solid rgba(255,255,255,.6);display:flex;align-items:center;justify-content:center;cursor:pointer;background:none;transition:background .2s}
 .nav-bell:hover{background:rgba(255,255,255,.15)}
-.bell-badge{position:absolute;top:-3px;right:-3px;width:18px;height:18px;background:#e07a1a;border-radius:50%;border:2px solid transparent;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff;pointer-events:none}
-.notif-dropdown{display:none;position:absolute;top:48px;right:0;width:320px;background:#fff;border-radius:16px;box-shadow:0 8px 40px rgba(26,58,107,.18);border:1.5px solid #e0eaf5;z-index:9999;overflow:hidden}
-.notif-dropdown.open{display:block}
-.notif-header{display:flex;align-items:center;justify-content:space-between;padding:16px 18px 12px;border-bottom:1.5px solid #f0f5fc}
-.notif-header-title{font-size:15px;font-weight:700;color:#1a3a6b;font-family:'Playfair Display',serif}
-.notif-empty{padding:28px 18px;text-align:center;color:#b0c4d8;font-size:14px}
-.notif-item{display:flex;align-items:flex-start;gap:12px;padding:14px 18px;border-bottom:1px solid #f5f8fc;transition:background .15s}
-.notif-item:last-child{border-bottom:none}
-.notif-item:hover{background:#f8fbff}
-.notif-icon{width:36px;height:36px;border-radius:50%;background:#fff4e6;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px}
-.notif-text{flex:1}
-.notif-name{font-size:14px;font-weight:700;color:#1a3a6b;margin-bottom:3px}
-.notif-meta{font-size:12px;color:#7a8fa8;display:flex;align-items:center;gap:6px}
-.notif-source-tag{background:#e8f0ff;color:#2255a4;border-radius:50px;padding:2px 8px;font-size:11px;font-weight:700}
-.notif-source-tag.cart{background:#e8f7ee;color:#1a6b3a}
-.notif-hours{color:#e07a1a;font-weight:700}
-.notif-dropdown{display:none;position:absolute;top:48px;right:0;width:320px;background:#fff;border-radius:16px;box-shadow:0 8px 40px rgba(26,58,107,.18);border:1.5px solid #e0eaf5;z-index:9999;overflow:hidden}
-.notif-dropdown.open{display:block}
-.notif-header{display:flex;align-items:center;justify-content:space-between;padding:16px 18px 12px;border-bottom:1.5px solid #f0f5fc}
-.notif-header-title{font-size:15px;font-weight:700;color:#1a3a6b;font-family:'Playfair Display',serif}
-.notif-empty{padding:28px 18px;text-align:center;color:#b0c4d8;font-size:14px}
+.nav-cart-wrap{position:relative;display:flex;align-items:center}
+.cart-badge{position:absolute;top:-5px;right:-5px;min-width:19px;height:19px;background:#e53935;border-radius:50%;border:2px solid #2255a4;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff;pointer-events:none}
+.bell-badge{position:absolute;top:-3px;right:-3px;width:18px;height:18px;background:#e53935;border-radius:50%;border:2px solid transparent;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff;pointer-events:none}
 
 /* ── PAGE LAYOUT ── */
-.page-wrap{max-width:860px;margin:0 auto;padding:28px 20px 60px}
-.page-title-row{display:flex;align-items:center;gap:20px;margin:0 0 28px}
+.page-wrap{max-width:860px;margin:0 auto;padding:28px 20px 60px;flex:1;width:100%;}
+.page-title-row{display:flex;align-items:center;gap:20px;margin:0 0 28px;justify-content:flex-start;}
 .back-btn{width:46px;height:46px;border-radius:50%;background:#cdd9e8;color:#1b3f92;display:flex;align-items:center;justify-content:center;font-size:28px;line-height:1;flex-shrink:0;font-weight:700}
 .back-btn:hover{background:#bfcee2}
 .page-title{font-size:62px;line-height:.95;margin:0;color:#183482;font-weight:700}
 
 /* ── PROVIDER BLOCK ── */
 .provider-block{background:#fff;border:1.8px solid #d2dce8;border-radius:28px;padding:24px 26px;margin-bottom:24px;box-shadow:0 2px 12px rgba(26,58,107,.06)}
-.provider-logo-text{font-size:36px;font-weight:700;color:#c85a3a;letter-spacing:1px;text-transform:uppercase;margin-bottom:16px;font-family:'Playfair Display',serif}
+.provider-header-row{display:flex;align-items:center;gap:14px;margin-bottom:16px}
+.provider-logo-text{font-size:36px;font-weight:700;color:#c85a3a;letter-spacing:1px;font-family:'Playfair Display',serif}
 
 /* ── ITEM CARD ── */
 .provider-card{background:#f5f8fc;border:1.6px solid #d2dce8;border-radius:20px;padding:14px 18px;display:flex;align-items:center;justify-content:space-between;gap:16px;margin:10px 0}
@@ -221,6 +259,10 @@ nav{display:flex;align-items:center;justify-content:space-between;padding:0 48px
 .checkout-wrap{display:flex;justify-content:center;margin-top:32px}
 .primary-cta{display:block;width:min(420px,100%);background:#f6811f;color:#fff;border:none;border-radius:24px;padding:20px 28px;font-size:32px;font-family:'Playfair Display',serif;cursor:pointer;text-align:center;text-decoration:none;font-weight:400;transition:background .2s}
 .primary-cta:hover{background:#e07010}
+.cart-total-row{display:flex;justify-content:flex-end;align-items:center;gap:12px;font-size:22px;font-weight:700;color:#183482;margin:18px 0 0;padding-right:8px}
+.cart-total-row span{color:#ea8b2c;display:flex;align-items:center;gap:4px}
+.riyal-img{height:16px;object-fit:contain;vertical-align:middle;margin-right:2px}
+.donation-tag{color:#2eb35c;font-weight:700;font-size:16px}
 
 /* ── FOOTER ── */
 footer{background:linear-gradient(90deg,#1a3a6b 0%,#2255a4 60%,#3a7bd5 100%);padding:28px 48px;display:flex;flex-direction:column;align-items:center;gap:14px;margin-top:40px}
@@ -232,6 +274,47 @@ footer{background:linear-gradient(90deg,#1a3a6b 0%,#2255a4 60%,#3a7bd5 100%);pad
 .footer-email{display:flex;align-items:center;gap:6px;color:rgba(255,255,255,.9);font-size:14px;font-family:'Playfair Display',serif}
 .footer-bottom{display:flex;align-items:center;gap:8px;color:rgba(255,255,255,.7);font-size:13px;font-family:'Playfair Display',serif;flex-wrap:wrap;justify-content:center}
 
+
+.notif-dropdown{display:none;position:absolute;top:50px;right:0;width:360px;background:#fff;border-radius:20px;box-shadow:0 12px 48px rgba(26,58,107,0.18);border:1.5px solid #e0eaf5;z-index:9999;overflow:hidden}
+.notif-dropdown.open{display:block;animation:floatUp .2s ease}
+.notif-header{display:flex;align-items:center;justify-content:space-between;padding:16px 18px 12px;border-bottom:1.5px solid #f0f5fc;background:#fff}
+.notif-header-title{font-size:15px;font-weight:700;color:#1a3a6b;font-family:'Playfair Display',serif}
+.notif-mark-all{font-size:12px;color:#2255a4;background:none;border:none;cursor:pointer;font-family:'Playfair Display',serif;font-weight:600;padding:0}
+.notif-mark-all:hover{color:#1a3a6b}
+.notif-list{max-height:420px;overflow-y:auto;scrollbar-width:thin;scrollbar-color:#c8d8ee transparent}
+.notif-empty{padding:36px 18px;text-align:center;color:#b0c4d8;font-size:14px}
+.notif-item{display:flex;align-items:flex-start;gap:12px;padding:14px 18px;border-bottom:1px solid #f5f8fc;transition:background .15s;cursor:pointer;position:relative}
+.notif-item:last-child{border-bottom:none}
+.notif-item:hover{background:#f8fbff}
+.notif-item.unread{background:#fffaf5;border-left:3px solid #e07a1a}
+.notif-item.unread:hover{background:#fff4e8}
+.notif-icon{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px}
+.notif-icon.expiry-red{background:#fde8e8}
+.notif-icon.expiry-orange{background:#fff0e0}
+.notif-icon.expiry-yellow{background:#fffbe6}
+.notif-icon.order{background:#e8f7ee}
+.notif-icon.pickup{background:#e8f0ff}
+.notif-icon.cancelled{background:#fde8e8}
+.notif-icon.default{background:#f2f4f8}
+.notif-item.urgency-red{border-left:3px solid #c0392b;background:#fff8f8}
+.notif-item.urgency-orange{border-left:3px solid #e07a1a;background:#fffaf5}
+.notif-item.urgency-yellow{border-left:3px solid #d4ac0d;background:#fffef0}
+.notif-body{flex:1;min-width:0}
+.notif-msg{font-size:13px;font-weight:600;color:#1a3a6b;font-family:'Playfair Display',serif;margin-bottom:4px;line-height:1.4}
+.notif-item.unread .notif-msg{font-weight:700}
+.notif-time{font-size:11px;color:#b0c4d8}
+.notif-unread-dot{width:8px;height:8px;background:#e07a1a;border-radius:50%;flex-shrink:0;margin-top:6px}
+.notif-footer{padding:12px 18px;border-top:1.5px solid #f0f5fc;text-align:center}
+.notif-footer a{font-size:13px;color:#2255a4;text-decoration:none;font-weight:600;font-family:'Playfair Display',serif}
+.notif-footer a:hover{color:#1a3a6b}
+@keyframes cartPop{0%{transform:scale(0);opacity:0}70%{transform:scale(1.25);opacity:1}100%{transform:scale(1);opacity:1}}
+@keyframes floatUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.cart-badge{animation:cartPop .4s cubic-bezier(0.175,0.885,0.32,1.275)}
+.bell-badge{animation:cartPop .4s cubic-bezier(0.175,0.885,0.32,1.275)}
+
+
+    .leaflet-pane,.leaflet-tile,.leaflet-marker-icon,.leaflet-marker-shadow,.leaflet-tile-pane,.leaflet-overlay-pane,.leaflet-shadow-pane,.leaflet-marker-pane,.leaflet-popup-pane,.leaflet-map-pane svg,.leaflet-map-pane canvas{z-index:1!important}
+    .leaflet-control{z-index:2!important}
 @media(max-width:700px){
   .page-title{font-size:42px}
   nav{padding:0 18px}
@@ -253,17 +336,71 @@ $pickupLocationModel = new PickupLocation();
 if ($_SERVER['REQUEST_METHOD']==='POST') {
     $action = $_POST['action'] ?? '';
     $itemId = $_POST['itemId'] ?? '';
+    $storedPickupTime = $_POST['selectedPickupTime'] ?? '';
     if ($action==='inc' && $itemId) {
         $cart = $cartModel->getOrCreate($customerId);
-        foreach (($cart['cartItems'] ?? []) as $ci) if ((string)$ci['itemId']===$itemId) { $cartModel->updateQuantity($customerId, $itemId, (int)$ci['quantity'] + 1); break; }
+        foreach (($cart['cartItems'] ?? []) as $ci) if ((string)$ci['itemId']===$itemId) {
+            $newQty = (int)$ci['quantity'] + 1;
+            $cartModel->updateQuantity($customerId, $itemId, $newQty);
+            // Re-save selectedPickupTime if model supports it
+            if (!empty($ci['selectedPickupTime'])) {
+                try { $cartModel->updateItemField($customerId, $itemId, 'selectedPickupTime', $ci['selectedPickupTime']); } catch(Throwable) {}
+            }
+            break;
+        }
     }
     if ($action==='dec' && $itemId) {
         $cart = $cartModel->getOrCreate($customerId);
-        foreach (($cart['cartItems'] ?? []) as $ci) if ((string)$ci['itemId']===$itemId) { $q=(int)$ci['quantity'] - 1; $q>0 ? $cartModel->updateQuantity($customerId,$itemId,$q) : $cartModel->removeItem($customerId,$itemId); break; }
+        foreach (($cart['cartItems'] ?? []) as $ci) if ((string)$ci['itemId']===$itemId) {
+            $q=(int)$ci['quantity'] - 1;
+            if ($q > 0) {
+                $cartModel->updateQuantity($customerId,$itemId,$q);
+                if (!empty($ci['selectedPickupTime'])) {
+                    try { $cartModel->updateItemField($customerId, $itemId, 'selectedPickupTime', $ci['selectedPickupTime']); } catch(Throwable) {}
+                }
+            } else {
+                $cartModel->removeItem($customerId,$itemId);
+            }
+            break;
+        }
     }
     if ($action==='remove' && $itemId) $cartModel->removeItem($customerId, $itemId);
     header('Location: cart.php'); exit;
 }
+$cart = $cartModel->getOrCreate($customerId);
+// ── Auto-fix cart: remove sold out, reduce over-stocked ──
+$cartAlerts = [];
+foreach (($cart['cartItems'] ?? []) as $ci) {
+    $liveItem = $itemModel->findById(rp_oid($ci['itemId']));
+    $cartQty  = (int)$ci['quantity'];
+    $liveQty  = (int)($liveItem['quantity'] ?? 0);
+
+    // Item gone or sold out → remove from cart
+    if (!$liveItem || empty($liveItem['isAvailable']) || $liveQty <= 0) {
+        $cartModel->removeItem($customerId, rp_oid($ci['itemId']));
+        $cartAlerts[] = [
+            'type'    => 'removed',
+            'name'    => $ci['itemName'] ?? 'Item',
+            'photo'   => $liveItem['photoUrl'] ?? '',
+            'qty'     => $cartQty,
+        ];
+        continue;
+    }
+
+    // Cart has more than available → reduce
+    if ($cartQty > $liveQty) {
+        $cartModel->updateQuantity($customerId, rp_oid($ci['itemId']), $liveQty);
+        $cartAlerts[] = [
+            'type'      => 'reduced',
+            'name'      => $ci['itemName'] ?? 'Item',
+            'photo'     => $liveItem['photoUrl'] ?? '',
+            'oldQty'    => $cartQty,
+            'newQty'    => $liveQty,
+        ];
+    }
+}
+
+// Reload cart after fixes
 $cart = $cartModel->getOrCreate($customerId);
 $grouped = [];
 $total = 0;
@@ -273,7 +410,7 @@ foreach (($cart['cartItems'] ?? []) as $ci) {
     $providerId = rp_oid($ci['providerId']);
     $provider = $providerModel->findById($providerId);
     $item = $itemModel->findById(rp_oid($ci['itemId']));
-    $logoTxt = strtoupper($provider['businessName'] ?? 'Provider');
+    $logoTxt = $provider['businessName'] ?? 'Provider';
     $location = $pickupLocationModel->getDefault($providerId);
     $street = trim((string)($location['street'] ?? ''));
     $city = trim((string)($location['city'] ?? ''));
@@ -288,6 +425,15 @@ foreach (($cart['cartItems'] ?? []) as $ci) {
     $grouped[$providerId]['items'][] = ['cart'=>$ci, 'item'=>$item];
     $total += (float)$ci['price'] * (int)$ci['quantity'];
 }
+// ── Cart count ──
+$_cartForCount = (new Cart())->getOrCreate($customerId);
+$cartCount = array_sum(array_map(fn($ci) => (int)($ci['quantity'] ?? 1), (array)($_cartForCount['cartItems'] ?? [])));
+
+// ── Full notifications ──
+$_notifModel  = new Notification();
+$notifications = (array)$_notifModel->getByCustomer($customerId);
+$unreadCount   = $_notifModel->getUnreadCount($customerId);
+
 // ── Expiry alerts ──
 $_watchedIds = array_unique(array_merge($_cartItemIds, $_favItemIds));
 foreach ($_watchedIds as $_wId) {
@@ -326,7 +472,12 @@ $alertCount = count($expiryAlerts);
 
     <?php foreach ($grouped as $providerId => $g): ?>
     <div class="provider-block">
-      <div class="provider-logo-text"><?= rp_h($g['logoTxt']) ?></div>
+      <div class="provider-header-row">
+        <?php if (!empty($g['provider']['businessLogo'])): ?>
+          <img src="<?= rp_h($g['provider']['businessLogo']) ?>" alt="<?= rp_h($g['logoTxt']) ?>" style="height:50px;max-width:160px;object-fit:contain;">
+        <?php endif; ?>
+        <div class="provider-logo-text"><?= rp_h($g['logoTxt']) ?></div>
+      </div>
 
       <?php foreach ($g['items'] as $row): $ci=$row['cart']; $item=$row['item']; ?>
       <div class="provider-card">
@@ -338,7 +489,11 @@ $alertCount = count($expiryAlerts);
           <?php endif; ?>
           <div class="item-meta">
             <h3><?= rp_h($ci['itemName']) ?></h3>
-            <div class="price"><span class="price-rial">﷼</span><?= rp_money($ci['price']) ?></div>
+            <?php if (($item['listingType'] ?? '') === 'donate'): ?>
+              <div class="price donation-tag">Donation</div>
+            <?php else: ?>
+              <div class="price"><img src="../../images/SAR.png" class="riyal-img" alt="SAR"><?= rp_money((float)$ci['price'] * (int)$ci['quantity']) ?></div>
+            <?php endif; ?>
           </div>
         </div>
 
@@ -367,13 +522,43 @@ $alertCount = count($expiryAlerts);
     </div>
     <?php endforeach; ?>
 
+    <?php
+    $isDonationOnly = true;
+    foreach ($grouped as $_pg) { foreach ($_pg['items'] as $_pr) { if (($_pr['item']['listingType'] ?? '') !== 'donate') { $isDonationOnly = false; break 2; } } }
+    ?>
+    <?php if (!$isDonationOnly): ?>
+    <div class="cart-total-row">
+      <strong>Total:</strong>
+      <span><img src="../../images/SAR.png" class="riyal-img" alt="SAR"><?= rp_money($total) ?></span>
+    </div>
+    <?php endif; ?>
     <div class="checkout-wrap">
       <a class="primary-cta" href="checkout.php">Check out</a>
     </div>
 
   <?php endif; ?>
 </div>
-
+<?php if (!empty($cartAlerts)): ?>
+  <div style="margin-bottom:24px;display:flex;flex-direction:column;gap:12px;">
+    <?php foreach ($cartAlerts as $alert): ?>
+      <div style="background:#fff;border:1.5px solid <?= $alert['type']==='removed' ? '#f5c0bc' : '#fde8b4' ?>;border-radius:18px;padding:14px 18px;display:flex;align-items:center;gap:14px;box-shadow:0 2px 10px rgba(26,58,107,0.06);">
+        <?php if (!empty($alert['photo'])): ?>
+          <img src="<?= rp_h($alert['photo']) ?>" style="width:56px;height:56px;border-radius:12px;object-fit:cover;flex-shrink:0;">
+        <?php else: ?>
+          <div style="width:56px;height:56px;border-radius:12px;background:#e8eef5;flex-shrink:0;"></div>
+        <?php endif; ?>
+        <div>
+          <div style="font-size:16px;font-weight:700;color:#183482;margin-bottom:4px;"><?= rp_h($alert['name']) ?></div>
+          <?php if ($alert['type'] === 'removed'): ?>
+            <div style="font-size:14px;color:#a03030;">❌ Sorry, this item is sold out and has been removed from your cart.</div>
+          <?php else: ?>
+            <div style="font-size:14px;color:#8a6000;">⚠️ Only <?= (int)$alert['newQty'] ?> left in stock — quantity updated from <?= (int)$alert['oldQty'] ?> to <?= (int)$alert['newQty'] ?>.</div>
+          <?php endif; ?>
+        </div>
+      </div>
+    <?php endforeach; ?>
+  </div>
+<?php endif; ?>
 <?php rp_footer(); ?>
 
 <script>
@@ -432,6 +617,28 @@ function toggleNotifDropdown(){
     if(!wrap.contains(e.target)) dropdown.classList.remove('open');
   });
 })();
+
+function updateBellBadge(delta) {
+  const badge = document.getElementById('bellBadge');
+  if (!badge) return;
+  const next = Math.max(0, (parseInt(badge.textContent)||0) + delta);
+  if (next === 0) badge.style.display = 'none';
+  else { badge.textContent = next; badge.style.display = 'flex'; }
+}
+function markRead(el) {
+  if (!el.classList.contains('unread')) return;
+  const notifId = el.dataset.id;
+  el.classList.remove('unread');
+  const dot = el.querySelector('.notif-unread-dot'); if(dot) dot.remove();
+  updateBellBadge(-1);
+  fetch(window.location.pathname, {method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify({action:'mark_read',notifId})}).catch(()=>{});
+}
+function markAllRead() {
+  document.querySelectorAll('#notifDropdown .notif-item.unread').forEach(el=>{el.classList.remove('unread');const d=el.querySelector('.notif-unread-dot');if(d)d.remove();});
+  const badge=document.getElementById('bellBadge'); if(badge) badge.style.display='none';
+  const btn=document.querySelector('.notif-mark-all'); if(btn) btn.style.display='none';
+  fetch(window.location.pathname,{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify({action:'mark_all_read'})}).catch(()=>{});
+}
 </script>
 </body>
 </html>

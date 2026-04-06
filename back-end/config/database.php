@@ -14,7 +14,7 @@ class Database {
     private $db;
 
     // ── Put your Atlas connection string here ──
-    private string $uri = 'mongodb+srv://halaabdulrahman01_db_user:GoUOMLzF15w2GGKb@replate.yqd9e0z.mongodb.net/?appName=Replate';
+    private string $uri = 'mongodb+srv://halaabdulrahman01_db_user:B0pxYbUoca3Lsb9t@replatebackup.rma40xk.mongodb.net/?appName=ReplateBackup';
     private string $dbName = 'replate';
 
     private function __construct() {

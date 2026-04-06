@@ -353,6 +353,127 @@ body {
       font-size: 13px;
       font-family: 'Playfair Display', serif;
     }
+    @media (max-width: 768px) {
+
+  .page {
+    display: flex;
+    flex-direction: column;
+    min-height: auto;
+    background-image: none;
+  }
+
+  .right-panel {
+    display: none;
+  }
+
+
+  /* Keep panel normal */
+  .left-panel {
+    justify-content: flex-start;
+    align-items: center;
+    padding-top: 150px;
+  }
+
+  /* 🔥 Center ONLY step 1 */
+  #step1 {
+    min-height: 60vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+
+  /* 🔥 Keep form higher */
+  #step2 .form-area {
+    margin-top: 30px;
+  }
+
+
+
+  .form-title {
+    font-size: 24px;
+    margin-bottom: 10px;
+  }
+
+  .form-subtitle {
+    font-size: 16px;
+    margin-bottom: 22px;
+  }
+
+  .signup-form {
+    gap: 20px;
+    width: 100%;
+  }
+
+  .field-label {
+    font-size: 16px;
+    margin-bottom: 4px;
+  }
+
+  .field-input {
+    width: 100%;
+    padding: 10px 26px;
+    font-size: 18px;
+    border-radius: 999px;
+  }
+.form-area {
+  max-width: 300%;
+  padding: 0 0px; /* small side spacing */
+}
+
+  .password-wrap .field-input {
+    padding-right: 58px;
+  }
+
+  .toggle-pw {
+    right: 20px;
+  }
+
+  .form-buttons {
+    display: flex;
+    flex-direction: row;
+    gap: 12px;
+    width: 100%;
+    margin-top: 6px;
+  }
+
+  .btn-back,
+  .btn-submit {
+    width: 50%;
+    min-width: 0;
+    padding: 15px 20px;
+    font-size: 16px;
+  }
+footer {
+  padding: 20px 16px;
+}
+
+.footer-top {
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+}
+
+.footer-divider {
+  display: none;
+}
+
+.footer-bottom {
+  font-size: 11px;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px;
+}
+
+.footer-bottom img {
+  height: 24px !important;
+}
+
+.social-icon {
+  width: 36px;
+  height: 36px;
+  font-size: 13px;
+}
+}
   </style>
 </head>
 <body>

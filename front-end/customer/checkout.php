@@ -204,6 +204,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $cartModel->clear($customerId);
             $notificationModel->notifyOrderPlaced($customerId, $orderId);
 
+            // ── Fire pickup_reminder for each provider group (same-day) ──
+            $placedOrder = (new Order())->findById($orderId);
+            $orderNum_   = $placedOrder['orderNumber'] ?? $orderId;
+            foreach ($orderItems as $oi_) {
+                $pt_ = $oi_['selectedPickupTime'] ?? 'Pickup time TBD';
+                $pl_ = $oi_['pickupLocation']     ?? 'Provider location';
+                // Only fire one reminder per provider (dedupe by location+time)
+                $notificationModel->notifyPickupReminder($customerId, $orderId, $orderNum_, $pt_, $pl_);
+                break; // one reminder per order is enough
+            }
+
             header("Location: order-details.php?orderId={$orderId}&new=1");
             exit;
         }

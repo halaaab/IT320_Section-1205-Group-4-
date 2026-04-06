@@ -11,6 +11,7 @@ require_once '../../back-end/models/Order.php';
 require_once '../../back-end/models/OrderItem.php';
 require_once '../../back-end/models/SupportTicket.php';
 require_once '../../back-end/models/Notification.php';
+require_once '../../back-end/models/Provider.php';
 require_once '../../back-end/models/Favourite.php';
 
 if (empty($_SESSION['customerId'])) {
@@ -22,33 +23,32 @@ $customerId = $_SESSION['customerId'];
 $customer = (new Customer())->findById($customerId);
 $firstName = explode(' ', trim($customer['fullName'] ?? ($_SESSION['userName'] ?? 'Customer')))[0] ?: 'Customer';
 
-// ── Expiry alerts ──
-$expiryAlerts = []; $alertCount = 0;
-$_now = time(); $_soon = $_now + 48*3600;
-$_fc = new Cart(); $_fc2 = $_fc->getOrCreate($customerId);
-$_cids = array_map(fn($ci) => (string)$ci['itemId'], (array)($_fc2['cartItems'] ?? []));
-$_fv = new Favourite(); $_fvs = $_fv->getByCustomer($customerId);
-$_fids = array_map(fn($f) => (string)$f['itemId'], $_fvs);
-$_wids = array_unique(array_merge($_cids, $_fids));
-$_im2 = new Item();
-foreach ($_wids as $_wid) {
-    try {
-        $_wi = $_im2->findById($_wid);
-        if (!$_wi || !isset($_wi['expiryDate'])) continue;
-        $_exp = $_wi['expiryDate']->toDateTime()->getTimestamp();
-        if ($_exp >= $_now && $_exp <= $_soon) {
-            $expiryAlerts[] = ['name'=>$_wi['itemName']??'Item','hoursLeft'=>ceil(($_exp-$_now)/3600),'source'=>in_array($_wid,$_cids)?'cart':'favourites'];
-        }
-    } catch (Throwable) { continue; }
-}
-$alertCount = count($expiryAlerts);
+// ── Load notifications + cart count ──
+$notifications = []; $unreadCount = 0; $cartCount = 0;
+try {
+    $nm_ = new Notification();
+    $notifications = (array)$nm_->getByCustomer($customerId);
+    $unreadCount   = (int)$nm_->getUnreadCount($customerId);
+} catch (Throwable) {}
+try {
+    $cm_ = new Cart(); $ct_ = $cm_->getOrCreate($customerId);
+    $cartCount = array_sum(array_map(fn($ci)=>(int)($ci['quantity']??1),(array)($ct_['cartItems']??[])));
+} catch (Throwable) {}
+$alertCount = $unreadCount;
 
 function rp_h($v){ return htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8'); }
 function rp_oid($v){ return is_object($v) ? (string)$v : (string)$v; }
 function rp_dt($dt, $fmt='j F Y  g:ia'){
-    if ($dt instanceof MongoDB\BSON\UTCDateTime) return $dt->toDateTime()->format($fmt);
-    if (is_numeric($dt)) return date($fmt, (int)$dt);
-    if ($dt) return date($fmt, strtotime((string)$dt));
+    $tz = new DateTimeZone('Asia/Riyadh');
+    if ($dt instanceof MongoDB\BSON\UTCDateTime) {
+        $d = $dt->toDateTime(); $d->setTimezone($tz); return $d->format($fmt);
+    }
+    if (is_numeric($dt)) {
+        $d = new DateTime('@'.(int)$dt); $d->setTimezone($tz); return $d->format($fmt);
+    }
+    if ($dt) {
+        $d = new DateTime((string)$dt); $d->setTimezone($tz); return $d->format($fmt);
+    }
     return '';
 }
 function rp_money($n){ return number_format((float)$n, 2); }
@@ -56,14 +56,13 @@ function rp_money($n){ return number_format((float)$n, 2); }
 function rp_footer(){ ?>
 <footer>
   <div class="footer-top">
-    <a href="#" class="social-icon">in</a>
-    <a href="#" class="social-icon">&#120143;</a>
-    <a href="#" class="social-icon">&#9834;</a>
-    <div class="footer-divider"></div>
-    <div class="footer-brand">
-      <img src="../../images/Replate-white.png" alt="RePlate" style="height:24px;object-fit:contain;" />
-      <span>RePlate</span>
+    <div style="display:flex;align-items:center;gap:10px;">
+      <a class="social-icon" href="#">in</a>
+      <a class="social-icon" href="#">&#120143;</a>
+      <a class="social-icon" href="#">&#9834;</a>
     </div>
+    <div class="footer-divider"></div>
+    <img src="../../images/Replate-white.png" alt="Replate" style="height:80px;object-fit:contain;" />
     <div class="footer-divider"></div>
     <div class="footer-email">
       <svg width="16" height="16" fill="none" stroke="rgba(255,255,255,0.85)" stroke-width="2" viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M2 7l10 7 10-7"/></svg>
@@ -72,200 +71,133 @@ function rp_footer(){ ?>
   </div>
   <div class="footer-bottom">
     <span>© 2026</span>
-    <img src="../../images/Replate-white.png" alt="" style="height:15px;object-fit:contain;opacity:0.8;"/>
+    <img src="../../images/Replate-white.png" alt="" style="height:50px;object-fit:contain;"/>
     <span>All rights reserved.</span>
   </div>
 </footer>
 <?php }
 
-function rp_top_header($active='') { global $alertCount, $expiryAlerts; ?>
-<nav>
-  <div class="nav-left">
-    <img class="nav-logo" src="../../images/Replate-white.png" alt="RePlate Logo" />
-    <a href="../customer/cart.php" class="nav-cart">
-      <img src="../../images/Shopping cart.png" alt="Cart" style="width:40px;height:40px;object-fit:contain;" />
-    </a>
-  </div>
-  <div class="nav-center">
-    <a href="../shared/landing.php" class="<?= $active==='home'?'active':'' ?>">Home Page</a>
-    <a href="../shared/landing.php#categories" class="<?= $active==='categories'?'active':'' ?>">Categories</a>
-    <a href="../shared/landing.php#providers" class="<?= $active==='providers'?'active':'' ?>">Providers</a>
-  </div>
-  <div class="nav-right">
-    <div class="nav-search-wrap" id="searchWrap">
-      <svg width="16" height="16" fill="none" stroke="#fff" stroke-width="2" viewBox="0 0 24 24">
-        <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
-      </svg>
-      <input type="text" id="searchInput" placeholder="Search products or providers..." autocomplete="off"/>
-      <div class="search-dropdown" id="searchDropdown"></div>
-    </div>
-    <div class="nav-bell-wrap">
-      <button class="nav-bell" type="button" onclick="toggleNotifDropdown()">
-        <svg width="18" height="18" fill="none" stroke="#fff" stroke-width="1.8" viewBox="0 0 24 24"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
-      </button>
-      <?php if ($alertCount > 0): ?><span class="bell-badge"><?= $alertCount ?></span><?php endif; ?>
-      <div class="notif-dropdown" id="notifDropdown">
-        <div class="notif-header">
-          <span class="notif-header-title">&#x23F0; Expiring Soon</span>
-          <span style="font-size:12px;color:#b0c4d8;"><?= $alertCount ?> alert<?= $alertCount!==1?'s':'' ?></span>
-        </div>
-        <?php if (empty($expiryAlerts)): ?>
-        <div class="notif-empty">
-          <svg width="32" height="32" fill="none" stroke="#c8d8ee" stroke-width="1.5" viewBox="0 0 24 24" style="margin:0 auto 8px;display:block;"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
-          No expiry alerts right now
-        </div>
-        <?php else: ?>
-        <?php foreach ($expiryAlerts as $alert): ?>
-        <div class="notif-item">
-          <div class="notif-icon"><svg width="16" height="16" fill="none" stroke="#e07a1a" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
-          <div class="notif-text">
-            <p class="notif-name"><?= rp_h($alert['name']) ?></p>
-            <div class="notif-meta">
-              <span class="notif-hours">&#x23F3; <?= $alert['hoursLeft'] ?>h left</span>
-              <span class="notif-source-tag <?= $alert['source']==="cart"?"cart":"" ?>"><?= $alert['source']==="cart"?"&#x1F6D2; Cart":"&#x2665; Favourites" ?></span>
-            </div>
-          </div>
-        </div>
-        <?php endforeach; ?>
-        <?php endif; ?>
+
+function rp_top_header($active='') {
+    global $cartCount, $notifications, $unreadCount; ?>
+<nav class="navbar">
+    <div class="nav-left">
+      <img class="nav-logo" src="../../images/Replate-white.png" alt="RePlate"/>
+      <div class="nav-cart-wrap">
+        <a href="../customer/cart.php" class="nav-cart">
+          <img src="../../images/Shopping cart.png" alt="Cart" style="width:40px;height:40px;object-fit:contain;"/>
+        </a>
+        <?php if ($cartCount > 0): ?><span class="cart-badge"><?= $cartCount ?></span><?php endif; ?>
       </div>
     </div>
-    <a href="customer-profile.php" class="nav-avatar">
-      <svg width="20" height="20" fill="none" stroke="#fff" stroke-width="1.8" viewBox="0 0 24 24">
-        <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/>
-      </svg>
-    </a>
-  </div>
-</nav>
+    <div class="nav-center">
+      <a href="../shared/landing.php">Home Page</a>
+      <a href="../shared/landing.php#categories">Categories</a>
+      <a href="../shared/landing.php#providers">Providers</a>
+    </div>
+    <div class="nav-right">
+      <div class="nav-search-wrap" id="searchWrap">
+        <svg width="16" height="16" fill="none" stroke="#fff" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+        <input type="text" id="searchInput" placeholder="Search products or providers..." autocomplete="off"/>
+        <div class="search-dropdown" id="searchDropdown"></div>
+      </div>
+      <div class="nav-bell-wrap">
+        <button class="nav-bell" onclick="toggleNotifDropdown()">
+          <svg width="18" height="18" fill="none" stroke="#fff" stroke-width="1.8" viewBox="0 0 24 24"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+        </button>
+        <?php if ($unreadCount > 0): ?>
+        <span class="bell-badge" id="bellBadge"><?= $unreadCount ?></span>
+        <?php else: ?><span class="bell-badge" id="bellBadge" style="display:none">0</span><?php endif; ?>
+        <div class="notif-dropdown" id="notifDropdown">
+          <div class="notif-header">
+            <span class="notif-header-title">Notifications</span>
+            <?php if ($unreadCount > 0): ?>
+            <button class="notif-mark-all" onclick="markAllRead()" style="font-size:12px;color:#2255a4;background:none;border:none;cursor:pointer;font-family:'Playfair Display',serif;font-weight:600;">Mark all read</button>
+            <?php endif; ?>
+          </div>
+          <div style="max-height:360px;overflow-y:auto;">
+          <?php if (empty($notifications)): ?>
+          <div class="notif-empty" style="padding:28px 16px;text-align:center;color:#b0c4d8;font-size:13px;">
+            <svg width="30" height="30" fill="none" stroke="#c8d8ee" stroke-width="1.5" viewBox="0 0 24 24" style="margin:0 auto 8px;display:block;"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+            You're all caught up!
+          </div>
+          <?php else: ?>
+          <?php foreach (array_slice($notifications, 0, 8) as $notif_):
+            $nIsRead_ = (bool)($notif_['isRead'] ?? false);
+            $nMsg_    = htmlspecialchars($notif_['message'] ?? '');
+            $nId_     = (string)($notif_['_id'] ?? '');
+            $nType_   = $notif_['type'] ?? '';
+            $nTime_   = '';
+            try { if (!empty($notif_['createdAt'])) {
+              $ts_ = $notif_['createdAt']->toDateTime()->getTimestamp();
+              $d_  = time()-$ts_;
+              $nTime_ = $d_<60 ? 'Just now' : ($d_<3600 ? floor($d_/60).'m ago' : ($d_<86400 ? floor($d_/3600).'h ago' : date('d M',$ts_)));
+            }} catch(Throwable $e_) {}
+            $nBl_     = $nIsRead_ ? '' : 'background:#fffaf5;border-left:3px solid #e07a1a;';
+            $nIconBg_ = '#f2f4f8'; $nIconSvg_ = '';
+            if ($nType_==='expiry_alert') {
+                $rawN_    = $notif_['message'] ?? '';
+                $urg_     = str_contains($rawN_,'[red]') ? 'red' : (str_contains($rawN_,'[orange]') ? 'orange' : 'yellow');
+                $urgC_    = $urg_==='red' ? '#c0392b' : ($urg_==='orange' ? '#e07a1a' : '#d4ac0d');
+                $nIconBg_ = $urg_==='red' ? '#fde8e8' : ($urg_==='orange' ? '#fff0e0' : '#fffbe6');
+                $nIconSvg_= '<svg width="14" height="14" fill="none" stroke="' . $urgC_ . '" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>';
+                $nBl_     = 'border-left:3px solid ' . $urgC_ . ';';
+            }
+            elseif ($nType_==='order_placed')    { $nIconBg_='#e8f7ee'; $nBl_='border-left:3px solid #1a6b3a;'; $nIconSvg_='<svg width="14" height="14" fill="none" stroke="#1a6b3a" stroke-width="2" viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><polyline points="9 12 11 14 15 10"/></svg>'; }
+            elseif ($nType_==='order_completed') { $nIconBg_='#e8f7ee'; $nBl_='border-left:3px solid #1a6b3a;'; $nIconSvg_='<svg width="14" height="14" fill="none" stroke="#1a6b3a" stroke-width="2" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>'; }
+            elseif ($nType_==='order_cancelled') { $nIconBg_='#fde8e8'; $nBl_='border-left:3px solid #e53935;'; $nIconSvg_='<svg width="14" height="14" fill="none" stroke="#e53935" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>'; }
+            elseif ($nType_==='pickup_reminder') { $nIconBg_='#e8f0ff'; $nBl_='border-left:3px solid #2255a4;'; $nIconSvg_='<svg width="14" height="14" fill="none" stroke="#2255a4" stroke-width="2" viewBox="0 0 24 24"><path d="M17.657 16.657L13.414 20.9a2 2 0 01-2.828 0l-4.243-4.243a8 8 0 1111.314 0z"/><circle cx="12" cy="11" r="3"/></svg>'; }
+          ?>
+          <div onclick="markRead(this)" data-id="<?= $nId_ ?>" style="display:flex;align-items:flex-start;gap:10px;padding:13px 16px;border-bottom:1px solid #f5f8fc;cursor:pointer;transition:background 0.15s;<?= $nBl_ ?>">
+            <div style="width:32px;height:32px;border-radius:50%;background:<?= $nIconBg_ ?>;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px;"><?= $nIconSvg_ ?></div>
+            <div style="flex:1;min-width:0;">
+              <?php $nClean_ = trim(preg_replace('/\[(?:red|orange|yellow|pickup|completed|cancelled)\]\s*/', '', $nMsg_)); ?>
+              <p style="font-size:12.5px;font-weight:<?= $nIsRead_?'500':'700' ?>;color:#1a3a6b;font-family:'Playfair Display',serif;margin-bottom:2px;line-height:1.4;"><?= htmlspecialchars($nClean_) ?></p>
+              <span style="font-size:11px;color:#b0c4d8;"><?= $nTime_ ?></span>
+            </div>
+            <?php if (!$nIsRead_): ?><div class="unread-dot" style="width:7px;height:7px;background:#e07a1a;border-radius:50%;flex-shrink:0;margin-top:4px;"></div><?php endif; ?>
+          </div>
+          <?php endforeach; ?>
+          <?php endif; ?>
+          </div>
+        </div>
+      </div>
+      <a href="customer-profile.php" class="nav-avatar">
+        <svg width="20" height="20" fill="none" stroke="#fff" stroke-width="1.8" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      </a>
+    </div>
+  </nav>
 <?php }
 
+
 function rp_page_styles(){ ?>
-<style>
-*{box-sizing:border-box}
-html,body{margin:0;padding:0}
-body{background:#e8eef5;color:#1b2f74;font-family:'Playfair Display',serif}
-a{text-decoration:none}
 
-/* ── NAV ── */
-nav{display:flex;align-items:center;justify-content:space-between;padding:0 48px;height:72px;background:linear-gradient(90deg,#1a3a6b 0%,#2255a4 60%,#3a7bd5 100%);position:sticky;top:0;z-index:100;box-shadow:0 2px 16px rgba(26,58,107,.18)}
-.nav-left{display:flex;align-items:center;gap:16px}
-.nav-logo{height:100px}
-.nav-cart{width:40px;height:40px;border-radius:50%;border:2px solid rgba(255,255,255,.7);display:flex;justify-content:center;align-items:center;cursor:pointer;text-decoration:none;transition:background .2s}
-.nav-cart:hover{background:rgba(255,255,255,.15)}
-.nav-center{display:flex;align-items:center;gap:40px}
-.nav-center a{color:rgba(255,255,255,.85);text-decoration:none;font-weight:500;font-size:15px;transition:color .2s}
-.nav-center a:hover,.nav-center a.active{color:#fff}
-.nav-center a.active{font-weight:600;border-bottom:2px solid #fff;padding-bottom:2px}
-.nav-right{display:flex;align-items:center;gap:12px}
-.nav-search-wrap{position:relative}
-.nav-search-wrap svg{position:absolute;left:12px;top:50%;transform:translateY(-50%);opacity:.6;pointer-events:none}
-.nav-search-wrap input{background:rgba(255,255,255,.15);border:1.5px solid rgba(255,255,255,.4);border-radius:50px;padding:9px 16px 9px 36px;color:#fff;font-size:14px;outline:none;width:240px;font-family:'Playfair Display',serif;transition:width .3s,background .2s}
-.nav-search-wrap input::placeholder{color:rgba(255,255,255,.6)}
-.nav-search-wrap input:focus{width:300px;background:rgba(255,255,255,.25)}
-.search-dropdown{display:none;position:absolute;top:calc(100% + 10px);right:0;width:380px;background:#fff;border-radius:16px;box-shadow:0 8px 40px rgba(26,58,107,.18);border:1.5px solid #e0eaf5;z-index:9999;overflow:hidden}
-.search-dropdown.open{display:block}
-.search-section-label{font-size:11px;font-weight:700;color:#b0c4d8;letter-spacing:.08em;text-transform:uppercase;padding:12px 16px 6px}
-.search-item-row{display:flex;align-items:center;gap:12px;padding:10px 16px;cursor:pointer;transition:background .15s;text-decoration:none}
-.search-item-row:hover{background:#f0f6ff}
-.search-thumb{width:38px;height:38px;border-radius:10px;background:#e0eaf5;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:18px}
-.search-thumb img{width:100%;height:100%;object-fit:cover;border-radius:10px}
-.search-item-name{font-size:14px;font-weight:700;color:#1a3a6b;font-family:'Playfair Display',serif}
-.search-item-sub{font-size:12px;color:#7a8fa8}
-.search-price{margin-left:auto;font-size:13px;font-weight:700;color:#e07a1a;white-space:nowrap}
-.search-divider{height:1px;background:#f0f5fc;margin:4px 0}
-.search-empty{padding:24px 16px;text-align:center;color:#b0c4d8;font-size:14px}
-.search-loading{padding:18px 16px;text-align:center;color:#b0c4d8;font-size:13px}
-.search-provider-logo{width:38px;height:38px;border-radius:50%;background:#e0eaf5;flex-shrink:0;overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700;color:#2255a4}
-.search-provider-logo img{width:100%;height:100%;object-fit:cover}
-.nav-avatar{width:38px;height:38px;border-radius:50%;border:2px solid rgba(255,255,255,.6);display:flex;align-items:center;justify-content:center;cursor:pointer}
-.nav-bell-wrap{position:relative}
-.nav-bell{width:38px;height:38px;border-radius:50%;border:2px solid rgba(255,255,255,.6);display:flex;align-items:center;justify-content:center;cursor:pointer;background:none;transition:background .2s}
-.nav-bell:hover{background:rgba(255,255,255,.15)}
-.bell-badge{position:absolute;top:-3px;right:-3px;width:18px;height:18px;background:#e07a1a;border-radius:50%;border:2px solid transparent;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff;pointer-events:none}
-.notif-item{display:flex;align-items:flex-start;gap:12px;padding:14px 18px;border-bottom:1px solid #f5f8fc;transition:background .15s}
-.notif-item:last-child{border-bottom:none}
-.notif-item:hover{background:#f8fbff}
-.notif-icon{width:36px;height:36px;border-radius:50%;background:#fff4e6;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px}
-.notif-text{flex:1}
-.notif-name{font-size:14px;font-weight:700;color:#1a3a6b;margin-bottom:3px}
-.notif-meta{font-size:12px;color:#7a8fa8;display:flex;align-items:center;gap:6px}
-.notif-source-tag{background:#e8f0ff;color:#2255a4;border-radius:50px;padding:2px 8px;font-size:11px;font-weight:700}
-.notif-source-tag.cart{background:#e8f7ee;color:#1a6b3a}
-.notif-hours{color:#e07a1a;font-weight:700}
-.notif-dropdown{display:none;position:absolute;top:48px;right:0;width:320px;background:#fff;border-radius:16px;box-shadow:0 8px 40px rgba(26,58,107,.18);border:1.5px solid #e0eaf5;z-index:9999;overflow:hidden}
-.notif-dropdown.open{display:block}
-.notif-header{display:flex;align-items:center;justify-content:space-between;padding:16px 18px 12px;border-bottom:1.5px solid #f0f5fc}
-.notif-header-title{font-size:15px;font-weight:700;color:#1a3a6b}
-.notif-empty{padding:28px 18px;text-align:center;color:#b0c4d8;font-size:14px}
-
-/* ── PAGE LAYOUT ── */
-.page-wrap{max-width:860px;margin:0 auto;padding:28px 20px 60px}
-.page-title-row{display:flex;align-items:center;gap:20px;margin:0 0 28px}
-.back-btn{width:46px;height:46px;border-radius:50%;background:#cdd9e8;color:#1b3f92;display:flex;align-items:center;justify-content:center;font-size:28px;line-height:1;flex-shrink:0;font-weight:700;text-decoration:none}
-.back-btn:hover{background:#bfcee2}
-.page-title{font-size:62px;line-height:.95;margin:0;color:#183482;font-weight:700}
-
-/* ── ORDERS SHELL ── */
-.orders-shell{background:#fff;border:1.8px solid #d2dce8;border-radius:28px;padding:24px;box-shadow:0 2px 12px rgba(26,58,107,.06)}
-
-/* ── SEGMENTED TABS ── */
-.segmented{display:flex;gap:0;justify-content:center;margin-bottom:24px;gap:20px}
-.seg-btn{min-width:220px;padding:14px 26px;border-radius:22px;border:1.8px solid #ea8b2c;background:#fff;color:#183482;font-size:24px;font-family:'Playfair Display',serif;cursor:pointer;text-decoration:none;text-align:center;display:inline-block;transition:background .2s,color .2s}
-.seg-btn.active{background:#f6811f;color:#fff;border-color:#f6811f}
-.seg-btn:not(.active):hover{background:#fff8f2}
-
-/* ── ORDER ROW ── */
-.order-row{background:#f5f8fc;border:1.6px solid #d2dce8;border-radius:22px;padding:16px 18px;display:flex;align-items:center;justify-content:space-between;gap:16px;margin:14px 0;text-decoration:none;color:inherit;transition:box-shadow .2s}
-.order-row:hover{box-shadow:0 4px 18px rgba(26,58,107,.1)}
-.order-left{display:flex;align-items:center;gap:16px}
-.logo-box{width:130px;height:100px;border-radius:20px;border:1.4px solid #d2dce8;background:#fff;display:flex;align-items:center;justify-content:center;padding:8px;text-align:center;font-size:26px;color:#c85a3a;font-weight:700;font-family:'Playfair Display',serif;flex-shrink:0;line-height:1.1;text-transform:uppercase}
-.order-info h3{margin:0 0 6px;font-size:20px;color:#183482;font-weight:700}
-.info-line{display:flex;align-items:center;gap:8px;color:#4166ad;font-size:15px;margin:5px 0}
-.info-line svg{flex-shrink:0}
-.order-right{display:flex;flex-direction:column;align-items:flex-end;gap:12px;flex-shrink:0}
-.order-total{color:#ea8b2c;font-size:22px;font-weight:700}
-.rial-sm{font-size:14px;margin-right:2px}
-.cancel-btn{display:inline-flex;align-items:center;justify-content:center;background:#f7a15d;color:#fff;border:none;border-radius:14px;padding:10px 28px;font-size:18px;font-family:'Playfair Display',serif;cursor:pointer;transition:background .2s;text-decoration:none}
-.cancel-btn:hover{background:#e08a45}
-
-/* ── MODAL ── */
-.modal-backdrop{position:fixed;inset:0;background:rgba(237,242,247,.75);display:flex;align-items:center;justify-content:center;z-index:200}
-.modal{background:#fff;border:1.6px solid #d2dce8;border-radius:22px;box-shadow:0 10px 30px rgba(0,0,0,.08)}
-.confirm-modal{width:min(440px,92vw);overflow:hidden}
-.confirm-body{padding:36px 28px;text-align:center;font-size:24px;font-weight:700;color:#3e62b6;line-height:1.4}
-.confirm-actions{display:grid;grid-template-columns:1fr 1fr;border-top:1.4px solid #d2dce8}
-.confirm-actions form,.confirm-actions a{display:flex;align-items:center;justify-content:center;height:80px;font-size:28px;font-family:'Playfair Display',serif;text-decoration:none;font-weight:700}
-.confirm-actions form:first-child,.confirm-actions a:last-child{border-right:0}
-.confirm-actions form{border-right:1.4px solid #d2dce8}
-.yes-btn{color:#2eb35c;border:none;background:none;font:inherit;cursor:pointer;font-size:28px;font-weight:700;font-family:'Playfair Display',serif;width:100%;height:100%}
-.no-btn{color:#d65252}
-
-/* ── FOOTER ── */
-footer{background:linear-gradient(90deg,#1a3a6b 0%,#2255a4 60%,#3a7bd5 100%);padding:28px 48px;display:flex;flex-direction:column;align-items:center;gap:14px;margin-top:40px}
-.footer-top{display:flex;align-items:center;gap:18px;flex-wrap:wrap;justify-content:center}
-.social-icon{width:42px;height:42px;border-radius:50%;border:1.5px solid rgba(255,255,255,.5);display:flex;align-items:center;justify-content:center;color:#fff;font-size:16px;font-weight:700;cursor:pointer;text-decoration:none;transition:background .2s}
-.social-icon:hover{background:rgba(255,255,255,.15)}
-.footer-divider{width:1px;height:22px;background:rgba(255,255,255,.3)}
-.footer-brand{display:flex;align-items:center;gap:8px;color:#fff;font-size:16px;font-weight:700}
-.footer-email{display:flex;align-items:center;gap:6px;color:rgba(255,255,255,.9);font-size:14px}
-.footer-bottom{display:flex;align-items:center;gap:8px;color:rgba(255,255,255,.7);font-size:13px;flex-wrap:wrap;justify-content:center}
-
-@media(max-width:700px){
-  .page-title{font-size:42px}
-  .seg-btn{min-width:140px;font-size:18px}
-  .logo-box{width:90px;height:70px;font-size:18px}
-  .order-right{flex-direction:row;align-items:center}
-  nav{padding:0 18px}
-  .nav-center{display:none}
-  footer{padding:24px 18px}
-}
-</style>
 <?php }
 ?>
 <?php
+// ── Fetch full notifications + cart count ──
+$notifications = []; $unreadCount = 0; $cartCount = 0;
+try {
+    $nm_           = new Notification();
+    $notifications = (array)$nm_->getByCustomer($customerId);
+    $unreadCount   = (int)$nm_->getUnreadCount($customerId);
+} catch (Throwable) {}
+try {
+    $cm_       = new Cart();
+    $ct_       = $cm_->getOrCreate($customerId);
+    $cartCount = array_sum(array_map(fn($ci)=>(int)($ci['quantity']??1),(array)($ct_['cartItems']??[])));
+} catch (Throwable) {}
+
 $orderModel = new Order(); $orderItemModel = new OrderItem();
 if (($_POST['action'] ?? '')==='cancel' && !empty($_POST['orderId'])) {
+    $order = $orderModel->findById($_POST['orderId']);          // fetch order first
     $orderModel->cancel($_POST['orderId']);
+    (new Notification())->create(                              // fire notification
+        $customerId,
+        'order_cancelled',
+        'Your order #' . ($order['orderNumber'] ?? '') . ' has been cancelled.',
+        ['orderId' => $_POST['orderId']]
+    );
     header('Location: orders.php?tab=currently'); exit;
 }
 $tab = $_GET['tab'] ?? 'currently';
@@ -276,7 +208,20 @@ foreach ($allOrders as $o) {
     if (($tab==='currently' && !$isCurrent) || ($tab==='previously' && $isCurrent)) continue;
     $items = $orderItemModel->getByOrder(rp_oid($o['_id']));
     $first = $items[0] ?? [];
-    $orders[] = ['order'=>$o, 'first'=>$first];
+    // Collect all unique providers for this order
+    $_providerMap = [];
+    foreach ($items as $_oi) {
+        $_pid = (string)($_oi['providerId'] ?? '');
+        if ($_pid && !isset($_providerMap[$_pid])) {
+            $_prov = null;
+            try { $_prov = (new Provider())->findById($_pid); } catch(Throwable) {}
+            $_providerMap[$_pid] = [
+                'name' => $_oi['providerName'] ?? 'Store',
+                'logo' => $_prov['businessLogo'] ?? '',
+            ];
+        }
+    }
+    $orders[] = ['order'=>$o, 'first'=>$first, 'providers'=>array_values($_providerMap)];
 }
 $showCancel = isset($_GET['confirm']) ? $_GET['confirm'] : '';
 ?>
@@ -288,15 +233,254 @@ $showCancel = isset($_GET['confirm']) ? $_GET['confirm'] : '';
   <title>Orders – RePlate</title>
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&display=swap" rel="stylesheet">
   <?php rp_page_styles(); ?>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Playfair Display', serif; background: #e8eef5; min-height: 100vh; display: flex; flex-direction: column; }
+    a { text-decoration: none; }
+        nav.navbar { display: flex; align-items: center; justify-content: space-between; padding: 0 40px; height: 72px; background: linear-gradient(90deg, #1a3a6b 0%, #2255a4 60%, #3a7bd5 100%); position: sticky; top: 0; z-index: 10000; box-shadow: 0 2px 16px rgba(26,58,107,0.18); }
+    .nav-logo { height: 100px; }
+    .nav-left { display: flex; align-items: center; gap: 16px; }
+    .nav-cart-wrap { position: relative; display: flex; align-items: center; }
+    .nav-cart { width: 40px; height: 40px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.7); display: flex; align-items: center; justify-content: center; text-decoration: none; transition: background 0.2s; }
+    .nav-cart:hover { background: rgba(255,255,255,0.15); }
+    .cart-badge { position: absolute; top: -5px; right: -5px; min-width: 19px; height: 19px; background: #e53935; border-radius: 50%; border: 2px solid #2255a4; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; color: #fff; pointer-events: none; }
+    .bell-badge { position: absolute; top: -3px; right: -3px; min-width: 18px; height: 18px; background: #e53935; border-radius: 50%; border: 2px solid #2255a4; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; color: #fff; pointer-events: none; }
+    .nav-center { display: flex; align-items: center; gap: 40px; }
+    .nav-center a { color: rgba(255,255,255,0.85); text-decoration: none; font-weight: 500; font-size: 15px; transition: color 0.2s; }
+    .nav-center a:hover { color: #fff; }
+    .nav-right { display: flex; align-items: center; gap: 12px; }
+    .nav-search-wrap { position: relative; }
+    .nav-search-wrap svg { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); opacity: 0.6; pointer-events: none; }
+    .nav-search-wrap input { background: rgba(255,255,255,0.15); border: 1.5px solid rgba(255,255,255,0.4); border-radius: 50px; padding: 9px 16px 9px 36px; color: #fff; font-size: 14px; outline: none; width: 240px; font-family: 'Playfair Display', serif; transition: width 0.3s, background 0.2s; }
+    .nav-search-wrap input::placeholder { color: rgba(255,255,255,0.6); }
+    .nav-search-wrap input:focus { width: 300px; background: rgba(255,255,255,0.25); }
+    .search-dropdown { display: none; position: absolute; top: calc(100% + 10px); right: 0; width: 380px; background: #fff; border-radius: 16px; box-shadow: 0 8px 40px rgba(26,58,107,0.18); border: 1.5px solid #e0eaf5; z-index: 9999; overflow: hidden; }
+    .search-dropdown.open { display: block; }
+    .search-section-label { font-size: 11px; font-weight: 700; color: #b0c4d8; letter-spacing: 0.08em; text-transform: uppercase; padding: 12px 16px 6px; }
+    .search-item-row { display: flex; align-items: center; gap: 12px; padding: 10px 16px; cursor: pointer; transition: background 0.15s; text-decoration: none; }
+    .search-item-row:hover { background: #f0f6ff; }
+    .search-thumb { width: 38px; height: 38px; border-radius: 10px; background: #e0eaf5; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 18px; overflow: hidden; }
+    .search-thumb img { width: 100%; height: 100%; object-fit: cover; border-radius: 10px; }
+    .search-item-name { font-size: 14px; font-weight: 700; color: #1a3a6b; font-family: 'Playfair Display', serif; }
+    .search-item-sub { font-size: 12px; color: #7a8fa8; }
+    .search-price { margin-left: auto; font-size: 13px; font-weight: 700; color: #e07a1a; white-space: nowrap; }
+    .search-divider { height: 1px; background: #f0f5fc; margin: 4px 0; }
+    .search-empty { padding: 24px 16px; text-align: center; color: #b0c4d8; font-size: 14px; }
+    .search-no-match { padding: 8px 16px 12px; font-size: 13px; color: #b0c4d8; font-style: italic; }
+    .search-loading { padding: 18px 16px; text-align: center; color: #b0c4d8; font-size: 13px; }
+    .search-provider-logo { width: 38px; height: 38px; border-radius: 50%; background: #e0eaf5; flex-shrink: 0; overflow: hidden; display: flex; align-items: center; justify-content: center; font-size: 15px; font-weight: 700; color: #2255a4; }
+    .search-provider-logo img { width: 100%; height: 100%; object-fit: cover; }
+    .nav-avatar { width: 38px; height: 38px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.6); display: flex; align-items: center; justify-content: center; cursor: pointer; text-decoration: none; background: rgba(255,255,255,0.15); }
+    .nav-avatar:hover { background: rgba(255,255,255,0.25); }
+    .nav-bell-wrap { position: relative; }
+    .nav-bell { width: 38px; height: 38px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.6); display: flex; align-items: center; justify-content: center; cursor: pointer; background: none; transition: background 0.2s; }
+    .nav-bell:hover { background: rgba(255,255,255,0.15); }
+    .notif-dropdown { display: none; position: absolute; top: 48px; right: 0; width: 360px; background: #fff; border-radius: 20px; box-shadow: 0 12px 48px rgba(26,58,107,0.18); border: 1.5px solid #e0eaf5; z-index: 99999; overflow: hidden; }
+    .notif-dropdown.open { display: block; }
+    .notif-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 18px 12px; border-bottom: 1.5px solid #f0f5fc; }
+    .notif-header-title { font-size: 15px; font-weight: 700; color: #1a3a6b; font-family: 'Playfair Display', serif; }
+    .notif-empty { padding: 28px 18px; text-align: center; color: #b0c4d8; font-size: 14px; }
+    .notif-item { display: flex; align-items: flex-start; gap: 12px; padding: 14px 18px; border-bottom: 1px solid #f5f8fc; transition: background 0.15s; }
+    .notif-item:last-child { border-bottom: none; }
+    .notif-item:hover { background: #f8fbff; }
+    
+.page-body { display: flex; flex: 1; }
+
+    /* SIDEBAR — exact from customer-profile.php */
+    .sidebar { width: 240px; min-height: calc(100vh - 72px); background: #2255a4; display: flex; flex-direction: column; padding: 36px 24px 28px; flex-shrink: 0; }
+    .sidebar p { margin: 0; padding: 0; }
+    .sidebar-welcome { color: rgba(255,255,255,0.75); font-size: 18px; font-weight: 400; margin: 0 0 4px 0; padding: 0; }
+    .sidebar-name { color: rgba(255,255,255,0.55); font-size: 42px; font-weight: 700; line-height: 1.1; margin: 0 0 16px 0 !important; padding: 0 !important; }
+    .sidebar-nav { display: flex; flex-direction: column; gap: 16px; flex: 1; background: transparent; }
+    .sidebar-link { display: flex; align-items: center; gap: 10px; color: rgba(255,255,255,0.75); text-decoration: none; font-size: 16px; font-weight: 400; padding: 10px 8px; border-radius: 0; transition: color 0.2s; background: none !important; -webkit-tap-highlight-color: transparent; }
+    .sidebar-link:hover { color: #fff; background: none !important; }
+    .sidebar-link.active { color: #fff !important; font-weight: 700; border-bottom: 2px solid rgba(255,255,255,0.5); background: none !important; padding-bottom: 6px; }
+    .sidebar-link svg { flex-shrink: 0; opacity: 0.8; }
+    .sidebar-link.active svg { opacity: 1; }
+    .sidebar-logout { margin-top: 24px; background: #fff; color: #1a3a6b; border: none; border-radius: 50px; padding: 12px 0; font-size: 16px; font-weight: 700; font-family: 'Playfair Display', serif; cursor: pointer; width: 100%; transition: background 0.2s; text-align: center; }
+    .sidebar-logout:hover { background: #e8f0ff; }
+    .sidebar-footer { margin-top: 24px; padding-top: 18px; border-top: 1px solid rgba(255,255,255,0.15); display: flex; flex-direction: column; gap: 12px; align-items: center; }
+    .sidebar-footer-social { display: flex; align-items: center; justify-content: center; gap: 8px; flex-wrap: wrap; }
+    .sidebar-social-icon { width: 30px; height: 30px; border-radius: 50%; border: 1.5px solid rgba(255,255,255,0.45); display: flex; align-items: center; justify-content: center; color: rgba(255,255,255,0.8); font-size: 12px; font-weight: 700; text-decoration: none; transition: background 0.2s; flex-shrink: 0; }
+    .sidebar-social-icon:hover { background: rgba(255,255,255,0.15); color: #fff; }
+    .sidebar-footer-email { display: flex; align-items: center; justify-content: center; gap: 6px; color: rgba(255,255,255,0.7); font-size: 11px; }
+    .sidebar-footer-copy { color: rgba(255,255,255,0.5); font-size: 11px; display: flex; align-items: center; justify-content: center; gap: 6px; flex-wrap: wrap; }
+
+    /* ── MAIN CONTENT ── */
+    .main-content{flex:1;padding:28px 32px 60px;background:#e8eef5}
+    .page-title-row{display:flex;align-items:center;gap:20px;margin:0 0 28px}
+    .page-title{font-size:62px;line-height:.95;margin:0;color:#183482;font-weight:700}
+
+    /* ── ORDERS ── */
+    .orders-shell{background:#fff;border:1.8px solid #d2dce8;border-radius:28px;padding:24px;box-shadow:0 2px 12px rgba(26,58,107,.06)}
+    .segmented{display:flex;justify-content:center;margin-bottom:24px;gap:20px}
+    .seg-btn{min-width:220px;padding:14px 26px;border-radius:22px;border:1.8px solid #ea8b2c;background:#fff;color:#183482;font-size:24px;font-family:'Playfair Display',serif;cursor:pointer;text-decoration:none;text-align:center;display:inline-block;transition:background .2s,color .2s}
+    .seg-btn.active{background:#f6811f;color:#fff;border-color:#f6811f}
+    .seg-btn:not(.active):hover{background:#fff8f2}
+    .order-row{background:#f5f8fc;border:1.6px solid #d2dce8;border-radius:22px;padding:16px 18px;display:flex;align-items:center;justify-content:space-between;gap:16px;margin:14px 0;text-decoration:none;color:inherit;transition:box-shadow .2s}
+    .order-row:hover{box-shadow:0 4px 18px rgba(26,58,107,.1)}
+    .order-left{display:flex;align-items:center;gap:16px}
+    .logo-box{width:130px;height:100px;border-radius:20px;border:1.4px solid #d2dce8;background:#fff;display:flex;align-items:center;justify-content:center;padding:8px;text-align:center;font-size:26px;color:#c85a3a;font-weight:700;font-family:'Playfair Display',serif;flex-shrink:0;line-height:1.1}
+    .order-info h3{margin:0 0 6px;font-size:20px;color:#183482;font-weight:700}
+    .info-line{display:flex;align-items:center;gap:8px;color:#4166ad;font-size:15px;margin:5px 0}
+    .order-right{display:flex;flex-direction:column;align-items:flex-end;gap:12px;flex-shrink:0}
+    .order-total{color:#ea8b2c;font-size:22px;font-weight:700;display:flex;align-items:center;gap:4px}
+    .riyal-img{height:15px;object-fit:contain;vertical-align:middle;margin-right:2px}
+    .donation-tag{color:#2eb35c;font-weight:700;font-size:22px}
+    .cancel-btn{display:inline-flex;align-items:center;justify-content:center;background:#f7a15d;color:#fff;border:none;border-radius:14px;padding:10px 28px;font-size:18px;font-family:'Playfair Display',serif;cursor:pointer;transition:background .2s;text-decoration:none}
+    .cancel-btn:hover{background:#e08a45}
+    .modal-backdrop{position:fixed;inset:0;background:rgba(237,242,247,.75);display:flex;align-items:center;justify-content:center;z-index:200}
+    .modal{background:#fff;border:1.6px solid #d2dce8;border-radius:22px;box-shadow:0 10px 30px rgba(0,0,0,.08)}
+    .confirm-modal{width:min(440px,92vw);overflow:hidden}
+    .confirm-body{padding:36px 28px;text-align:center;font-size:24px;font-weight:700;color:#3e62b6;line-height:1.4}
+    .confirm-actions{display:grid;grid-template-columns:1fr 1fr;border-top:1.4px solid #d2dce8}
+    .confirm-actions form,.confirm-actions a{display:flex;align-items:center;justify-content:center;height:80px;font-size:28px;font-family:'Playfair Display',serif;text-decoration:none;font-weight:700}
+    .confirm-actions form{border-right:1.4px solid #d2dce8}
+    .yes-btn{color:#2eb35c;border:none;background:none;font:inherit;cursor:pointer;font-size:28px;font-weight:700;font-family:'Playfair Display',serif;width:100%;height:100%}
+    .no-btn{color:#d65252}
+    @media(max-width:700px){
+      .page-title{font-size:42px}
+      .seg-btn{min-width:140px;font-size:18px}
+      .logo-box{width:90px;height:70px;font-size:18px}
+      .order-right{flex-direction:row;align-items:center}
+    }
+  </style>
 </head>
 <body>
-<?php rp_top_header(); ?>
 
-<div class="page-wrap">
-  <div class="page-title-row">
-    <a class="back-btn" href="customer-profile.php">‹</a>
-    <h1 class="page-title">Orders</h1>
+<nav class="navbar">
+  <div class="nav-left">
+    <img class="nav-logo" src="../../images/Replate-white.png" alt="RePlate"/>
+    <div class="nav-cart-wrap">
+      <a href="../customer/cart.php" class="nav-cart">
+        <img src="../../images/Shopping cart.png" alt="Cart" style="width:40px;height:40px;object-fit:contain;"/>
+      </a>
+      <?php if ($cartCount > 0): ?><span class="cart-badge"><?= $cartCount ?></span><?php endif; ?>
+    </div>
   </div>
+  <div class="nav-center">
+    <a href="../shared/landing.php">Home Page</a>
+    <a href="../shared/landing.php#categories">Categories</a>
+    <a href="../shared/landing.php#providers">Providers</a>
+  </div>
+  <div class="nav-right">
+    <div class="nav-search-wrap" id="searchWrap">
+      <svg width="16" height="16" fill="none" stroke="#fff" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+      <input type="text" id="searchInput" placeholder="Search products or providers..." autocomplete="off"/>
+      <div class="search-dropdown" id="searchDropdown"></div>
+    </div>
+    <div class="nav-bell-wrap">
+      <button class="nav-bell" id="bellBtn" onclick="toggleNotifDropdown()">
+        <svg width="18" height="18" fill="none" stroke="#fff" stroke-width="1.8" viewBox="0 0 24 24"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+      </button>
+      <?php if ($unreadCount > 0): ?>
+      <span class="bell-badge" id="bellBadge"><?= $unreadCount ?></span>
+      <?php else: ?><span class="bell-badge" id="bellBadge" style="display:none">0</span><?php endif; ?>
+      <div class="notif-dropdown" id="notifDropdown">
+        <div class="notif-header">
+          <span class="notif-header-title">Notifications</span>
+          <?php if ($unreadCount > 0): ?>
+          <button class="notif-mark-all" onclick="markAllRead()" style="font-size:12px;color:#2255a4;background:none;border:none;cursor:pointer;font-family:'Playfair Display',serif;font-weight:600;">Mark all read</button>
+          <?php endif; ?>
+        </div>
+        <div style="max-height:360px;overflow-y:auto;">
+        <?php if (empty($notifications)): ?>
+        <div class="notif-empty" style="padding:28px 16px;text-align:center;color:#b0c4d8;font-size:13px;">
+          <svg width="30" height="30" fill="none" stroke="#c8d8ee" stroke-width="1.5" viewBox="0 0 24 24" style="margin:0 auto 8px;display:block;"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+          You're all caught up!
+        </div>
+        <?php else: ?>
+        <?php foreach (array_slice($notifications, 0, 8) as $notif_):
+          $nIsRead_ = (bool)($notif_['isRead'] ?? false);
+          $nMsg_    = htmlspecialchars($notif_['message'] ?? '');
+          $nId_     = (string)($notif_['_id'] ?? '');
+          $nType_   = $notif_['type'] ?? '';
+          $nTime_   = '';
+          try { if (!empty($notif_['createdAt'])) {
+            $ts_ = $notif_['createdAt']->toDateTime()->getTimestamp();
+            $d_  = time()-$ts_;
+            $nTime_ = $d_<60 ? 'Just now' : ($d_<3600 ? floor($d_/60).'m ago' : ($d_<86400 ? floor($d_/3600).'h ago' : date('d M',$ts_)));
+          }} catch(Throwable $e_) {}
+          $nBl_     = $nIsRead_ ? '' : 'background:#fffaf5;border-left:3px solid #e07a1a;';
+          $nIconBg_ = '#f2f4f8'; $nIconSvg_ = '';
+          if ($nType_==='expiry_alert') {
+              $rawN_    = $notif_['message'] ?? '';
+              $urg_     = str_contains($rawN_,'[red]') ? 'red' : (str_contains($rawN_,'[orange]') ? 'orange' : 'yellow');
+              $urgC_    = $urg_==='red' ? '#c0392b' : ($urg_==='orange' ? '#e07a1a' : '#d4ac0d');
+              $nIconBg_ = $urg_==='red' ? '#fde8e8' : ($urg_==='orange' ? '#fff0e0' : '#fffbe6');
+              $nIconSvg_= '<svg width="14" height="14" fill="none" stroke="'.$urgC_.'" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>';
+              $nBl_     = 'border-left:3px solid '.$urgC_.';';
+          } elseif ($nType_==='order_placed')    { $nIconBg_='#e8f7ee'; $nBl_='border-left:3px solid #1a6b3a;'; $nIconSvg_='<svg width="14" height="14" fill="none" stroke="#1a6b3a" stroke-width="2" viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><polyline points="9 12 11 14 15 10"/></svg>'; }
+          elseif ($nType_==='order_completed') { $nIconBg_='#e8f7ee'; $nBl_='border-left:3px solid #1a6b3a;'; $nIconSvg_='<svg width="14" height="14" fill="none" stroke="#1a6b3a" stroke-width="2" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>'; }
+          elseif ($nType_==='order_cancelled') { $nIconBg_='#fde8e8'; $nBl_='border-left:3px solid #e53935;'; $nIconSvg_='<svg width="14" height="14" fill="none" stroke="#e53935" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>'; }
+          elseif ($nType_==='pickup_reminder') { $nIconBg_='#e8f0ff'; $nBl_='border-left:3px solid #2255a4;'; $nIconSvg_='<svg width="14" height="14" fill="none" stroke="#2255a4" stroke-width="2" viewBox="0 0 24 24"><path d="M17.657 16.657L13.414 20.9a2 2 0 01-2.828 0l-4.243-4.243a8 8 0 1111.314 0z"/><circle cx="12" cy="11" r="3"/></svg>'; }
+        ?>
+        <div onclick="markRead(this)" data-id="<?= $nId_ ?>" style="display:flex;align-items:flex-start;gap:10px;padding:13px 16px;border-bottom:1px solid #f5f8fc;cursor:pointer;transition:background 0.15s;<?= $nBl_ ?>">
+          <div style="width:32px;height:32px;border-radius:50%;background:<?= $nIconBg_ ?>;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px;"><?= $nIconSvg_ ?></div>
+          <div style="flex:1;min-width:0;">
+            <?php $nClean_ = trim(preg_replace('/\[(?:red|orange|yellow|pickup|completed|cancelled)\]\s*/', '', $nMsg_)); ?>
+            <p style="font-size:12.5px;font-weight:<?= $nIsRead_?'500':'700' ?>;color:#1a3a6b;font-family:'Playfair Display',serif;margin-bottom:2px;line-height:1.4;"><?= htmlspecialchars($nClean_) ?></p>
+            <span style="font-size:11px;color:#b0c4d8;"><?= $nTime_ ?></span>
+          </div>
+          <?php if (!$nIsRead_): ?><div class="unread-dot" style="width:7px;height:7px;background:#e07a1a;border-radius:50%;flex-shrink:0;margin-top:4px;"></div><?php endif; ?>
+        </div>
+        <?php endforeach; ?>
+        <?php endif; ?>
+        </div>
+      </div>
+    </div>
+    <a href="customer-profile.php" class="nav-avatar">
+      <svg width="20" height="20" fill="none" stroke="#fff" stroke-width="1.8" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+    </a>
+  </div>
+</nav>
+
+
+<div class="page-body">
+  <aside class="sidebar">
+    <p class="sidebar-welcome">Welcome Back ,</p>
+    <p class="sidebar-name"><?= rp_h($firstName) ?></p>
+    <nav class="sidebar-nav">
+      <a href="customer-profile.php" class="sidebar-link ">
+        <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        Profile
+      </a>
+      <a href="favorites.php" class="sidebar-link ">
+        <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2z"/></svg>
+        Favourites
+      </a>
+      <a href="orders.php" class="sidebar-link active">
+        <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/></svg>
+        Orders
+      </a>
+      <a href="contact.php" class="sidebar-link ">
+        <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
+        Contact Us
+      </a>
+    </nav>
+    <button class="sidebar-logout" onclick="window.location.href='customer-profile.php?logout=1'">Log out</button>
+    <div class="sidebar-footer">
+      <div class="sidebar-footer-social">
+        <a href="#" class="sidebar-social-icon">in</a>
+        <a href="#" class="sidebar-social-icon">&#120143;</a>
+        <a href="#" class="sidebar-social-icon">&#9834;</a>
+        <img src="../../images/Replate-white.png" alt="RePlate" style="height:22px;object-fit:contain;opacity:0.75;margin-left:4px;"/>
+      </div>
+      <div class="sidebar-footer-email">
+        <svg width="13" height="13" fill="none" stroke="rgba(255,255,255,0.7)" stroke-width="2" viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M2 7l10 7 10-7"/></svg>
+        <span>Replate@gmail.com</span>
+      </div>
+      <div class="sidebar-footer-copy">
+        <span>© 2026</span>
+        <img src="../../images/Replate-white.png" alt="" style="height:14px;object-fit:contain;opacity:0.5;"/>
+        <span>All rights reserved.</span>
+      </div>
+    </div>
+  </aside>
+  <div class="main-content">
+    <div class="page-title-row">
+      <h1 class="page-title">Orders</h1>
+    </div>
 
   <div class="orders-shell">
     <!-- Tabs -->
@@ -309,12 +493,27 @@ $showCancel = isset($_GET['confirm']) ? $_GET['confirm'] : '';
       <div style="text-align:center;padding:32px 12px;color:#6d7da0;font-size:22px;">No <?= rp_h($tab) ?> orders yet.</div>
     <?php endif; ?>
 
-    <?php foreach ($orders as $row): $o=$row['order']; $first=$row['first']; $oid=rp_oid($o['_id']); ?>
+    <?php foreach ($orders as $row): $o=$row['order']; $first=$row['first']; $oid=rp_oid($o['_id']); $providers=$row['providers']; ?>
     <a class="order-row" href="order-details.php?orderId=<?= rp_h($oid) ?>">
       <div class="order-left">
-        <div class="logo-box"><?= rp_h(strtoupper($first['providerName'] ?? 'Store')) ?></div>
-        <div class="order-info">
-          <h3><?= rp_h($first['providerName'] ?? 'Store') ?></h3>
+        <!-- Show all provider logos/names -->
+        <div style="display:flex;flex-direction:column;gap:8px;">
+          <?php foreach ($providers as $_p): ?>
+          <div style="display:flex;align-items:center;gap:10px;">
+            <div class="logo-box" style="width:80px;height:64px;flex-shrink:0;">
+              <?php if (!empty($_p['logo'])): ?>
+                <img src="<?= rp_h($_p['logo']) ?>" alt="<?= rp_h($_p['name']) ?>" style="width:100%;height:100%;object-fit:contain;border-radius:14px;">
+              <?php else: ?>
+                <?= rp_h($_p['name']) ?>
+              <?php endif; ?>
+            </div>
+            <div class="order-info" style="margin:0;">
+              <h3 style="margin:0;"><?= rp_h($_p['name']) ?></h3>
+            </div>
+          </div>
+          <?php endforeach; ?>
+        </div>
+        <div class="order-info" style="margin-left:12px;">
           <div class="info-line">
             <svg width="16" height="16" fill="none" stroke="#4166ad" stroke-width="1.8" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
             <span><?= rp_h(rp_dt($o['placedAt'])) ?></span>
@@ -326,7 +525,17 @@ $showCancel = isset($_GET['confirm']) ? $_GET['confirm'] : '';
         </div>
       </div>
       <div class="order-right">
-        <div class="order-total"><span class="rial-sm">﷼</span><?= rp_money($o['totalAmount'] ?? 0) ?></div>
+        <?php
+        $_isDonate = false;
+        if (!empty($first['itemId'])) {
+            try { $_oi = (new Item())->findById((string)$first['itemId']); $_isDonate = (($_oi['listingType'] ?? '') === 'donate'); } catch(Throwable) {}
+        }
+        ?>
+        <?php if ($_isDonate): ?>
+          <div class="order-total donation-tag">Donation</div>
+        <?php else: ?>
+          <div class="order-total"><img src="../../images/SAR.png" class="riyal-img" alt="SAR"><?= rp_money($o['totalAmount'] ?? 0) ?></div>
+        <?php endif; ?>
         <?php if (($o['orderStatus'] ?? '')==='pending'): ?>
           <span class="cancel-btn" onclick="event.preventDefault();event.stopPropagation();window.location='orders.php?tab=currently&confirm=<?= rp_h($oid) ?>';">Cancel</span>
         <?php endif; ?>
@@ -352,30 +561,53 @@ $showCancel = isset($_GET['confirm']) ? $_GET['confirm'] : '';
 </div>
 <?php endif; ?>
 
-<?php rp_footer(); ?>
+  </div><!-- /main-content -->
+</div><!-- /page-body -->
 
 <script>
 function toggleNotifDropdown(){
-  const el = document.getElementById('notifDropdown');
-  if(el) el.classList.toggle('open');
+  document.getElementById('notifDropdown').classList.toggle('open');
+}
+function markRead(el) {
+  if (!el.dataset.id) return;
+  el.style.background = ''; el.style.borderLeft = '';
+  const dot = el.querySelector('.unread-dot'); if(dot) dot.remove();
+  const badge = document.getElementById('bellBadge');
+  if (badge) { const n=Math.max(0,(parseInt(badge.textContent)||0)-1); if(n===0) badge.style.display='none'; else badge.textContent=n; }
+  fetch(window.location.pathname, {method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify({action:'mark_read',notifId:el.dataset.id})}).catch(()=>{});
+}
+function markAllRead() {
+  document.querySelectorAll('#notifDropdown [data-id]').forEach(el=>{
+    el.style.background=''; el.style.borderLeft='';
+    const d=el.querySelector('.unread-dot'); if(d) d.remove();
+  });
+  const b=document.getElementById('bellBadge'); if(b) b.style.display='none';
+  fetch(window.location.pathname,{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify({action:'mark_all_read'})}).catch(()=>{});
 }
 (function(){
-  const input = document.getElementById('searchInput');
-  const dropdown = document.getElementById('searchDropdown');
-  const wrap = document.getElementById('searchWrap');
+  const input=document.getElementById('searchInput'),dropdown=document.getElementById('searchDropdown'),wrap=document.getElementById('searchWrap');
   if(!input||!dropdown||!wrap) return;
-  let timer = null;
-  function render(data){
-    const items = Array.isArray(data.items)?data.items:[];
-    const providers = Array.isArray(data.providers)?data.providers:[];
-    if(!items.length&&!providers.length){ dropdown.innerHTML='<div class="search-empty">No matches found</div>'; dropdown.classList.add('open'); return; }
-    let html='';
-    if(items.length){ html+='<div class="search-section-label">Items</div>'; items.forEach(item=>{ const thumb=item.photoUrl?`<div class="search-thumb"><img src="${item.photoUrl}" alt=""></div>`:'<div class="search-thumb">🛍</div>'; html+=`<a class="search-item-row" href="item-details.php?id=${item.id}">${thumb}<div><div class="search-item-name">${item.name}</div><div class="search-item-sub">${item.listingType||''}</div></div><div class="search-price">${item.price||''}</div></a>`; }); }
-    if(providers.length){ if(items.length) html+='<div class="search-divider"></div>'; html+='<div class="search-section-label">Providers</div>'; providers.forEach(p=>{ const logo=p.businessLogo?`<div class="search-provider-logo"><img src="${p.businessLogo}" alt=""></div>`:`<div class="search-provider-logo">${(p.businessName||'P').charAt(0)}</div>`; html+=`<a class="search-item-row" href="../shared/landing.php#providers">${logo}<div><div class="search-item-name">${p.businessName||''}</div><div class="search-item-sub">${p.category||''}</div></div></a>`; }); }
-    dropdown.innerHTML=html; dropdown.classList.add('open');
-  }
-  input.addEventListener('input',function(){ const q=this.value.trim(); clearTimeout(timer); if(q.length<2){ dropdown.classList.remove('open'); dropdown.innerHTML=''; return; } dropdown.innerHTML='<div class="search-loading">Searching...</div>'; dropdown.classList.add('open'); timer=setTimeout(()=>{ fetch('../../back-end/search.php?q='+encodeURIComponent(q)).then(r=>r.json()).then(render).catch(()=>{ dropdown.innerHTML='<div class="search-empty">Search unavailable</div>'; dropdown.classList.add('open'); }); },220); });
-  document.addEventListener('click',function(e){ const notif=document.getElementById('notifDropdown'); const bellWrap=document.querySelector('.nav-bell-wrap'); if(notif&&bellWrap&&!bellWrap.contains(e.target)) notif.classList.remove('open'); if(!wrap.contains(e.target)) dropdown.classList.remove('open'); });
+  let timer=null;
+  input.addEventListener('input',function(){
+    clearTimeout(timer); const q=this.value.trim();
+    if(q.length<2){dropdown.classList.remove('open');dropdown.innerHTML='';return;}
+    dropdown.innerHTML='<div class="search-loading">Searching...</div>';dropdown.classList.add('open');
+    timer=setTimeout(()=>{
+      fetch('../../back-end/search.php?q='+encodeURIComponent(q)).then(r=>r.json()).then(data=>{
+        const items=data.items||[],providers=data.providers||[];
+        if(!items.length&&!providers.length){dropdown.innerHTML='<div class="search-empty">No matches found</div>';dropdown.classList.add('open');return;}
+        let html='';
+        if(providers.length){html+='<div class="search-section-label">Providers</div>';providers.forEach(p=>{const logo=p.businessLogo?`<div class="search-provider-logo"><img src="${p.businessLogo}"/></div>`:`<div class="search-provider-logo">${p.businessName.charAt(0)}</div>`;html+=`<a class="search-item-row" href="../customer/providers-page.php?providerId=${p.id}">${logo}<div><p class="search-item-name">${p.businessName}</p><p class="search-item-sub">${p.category||''}</p></div></a>`;});}
+        if(items.length){html+='<div class="search-divider"></div><div class="search-section-label">Products</div>';items.forEach(item=>{const t=item.photoUrl?`<div class="search-thumb"><img src="${item.photoUrl}"/></div>`:'<div class="search-thumb">&#127837;</div>';html+=`<a class="search-item-row" href="../customer/item-details.php?itemId=${item.id}">${t}<div><p class="search-item-name">${item.name}</p></div><span class="search-price">${item.price||''}</span></a>`;});}
+        dropdown.innerHTML=html;dropdown.classList.add('open');
+      }).catch(()=>{dropdown.innerHTML='<div class="search-empty">Search unavailable</div>';dropdown.classList.add('open');});
+    },220);
+  });
+  document.addEventListener('click',function(e){
+    const bw=document.querySelector('.nav-bell-wrap');
+    if(bw&&!bw.contains(e.target))document.getElementById('notifDropdown')?.classList.remove('open');
+    if(!wrap.contains(e.target))dropdown.classList.remove('open');
+  });
 })();
 </script>
 </body>

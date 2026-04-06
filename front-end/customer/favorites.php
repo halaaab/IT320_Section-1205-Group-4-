@@ -40,7 +40,9 @@ $itemModel  = new Item();
 $favourites = [];
 foreach ($savedRefs as $ref) {
     $item = $itemModel->findById((string) $ref['itemId']);
-    if ($item) $favourites[] = $item;
+    if ($item && !empty($item['isAvailable']) && (int)($item['quantity'] ?? 0) > 0) {
+        $favourites[] = $item;
+    }
 }
 
 // ── EXAMPLE: Favourites loop ──

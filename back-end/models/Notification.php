@@ -70,8 +70,32 @@ class Notification extends BaseModel {
     // ── Helper: send expiry_alert notification ──
     public function notifyExpiryAlert(string $customerId, string $itemId, string $itemName): string {
         return $this->create($customerId, 'expiry_alert',
-            "⏰ \"$itemName\" in your favourites is expiring soon!",
+            "\"$itemName\" in your favourites is expiring soon!",
             ['itemId' => $itemId]
+        );
+    }
+
+    // ── Helper: send pickup_reminder notification (fires at checkout, same-day) ──
+    public function notifyPickupReminder(string $customerId, string $orderId, string $orderNumber, string $pickupTime, string $pickupLocation): string {
+        return $this->create($customerId, 'pickup_reminder',
+            "📍 [pickup] Today is pickup day for order $orderNumber! $pickupTime · $pickupLocation",
+            ['orderId' => $orderId]
+        );
+    }
+
+    // ── Helper: send order_completed notification ──
+    public function notifyOrderCompleted(string $customerId, string $orderId, string $orderNumber): string {
+        return $this->create($customerId, 'order_completed',
+            "[completed] Order $orderNumber has been completed — thanks for reducing food waste! 🌱",
+            ['orderId' => $orderId]
+        );
+    }
+
+    // ── Helper: send order_cancelled notification ──
+    public function notifyOrderCancelled(string $customerId, string $orderId, string $orderNumber): string {
+        return $this->create($customerId, 'order_cancelled',
+            "[cancelled] Order $orderNumber has been cancelled.",
+            ['orderId' => $orderId]
         );
     }
 

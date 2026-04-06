@@ -2,13 +2,6 @@
 // ================================================================
 // providers-page.php — Single Provider Profile + Their Items
 // ================================================================
-// URL PARAMS:  ?providerId=xxx
-// VARIABLES:
-//   $provider   → provider object { businessName, businessDescription,
-//                   businessLogo, category, phoneNumber }
-//   $items      → available items listed by this provider
-//   $location   → provider's default pickup location
-// ================================================================
 
 session_start();
 require_once '../../back-end/config/database.php';
@@ -16,6 +9,7 @@ require_once '../../back-end/models/BaseModel.php';
 require_once '../../back-end/models/Provider.php';
 require_once '../../back-end/models/Item.php';
 require_once '../../back-end/models/PickupLocation.php';
+require_once '../../back-end/models/Category.php';
 
 $providerId    = $_GET['providerId'] ?? '';
 $provider      = null;
@@ -33,27 +27,20 @@ if ($providerId) {
     }
 }
 
-// ── EXAMPLE: Provider header ──
-// <h1>[provider.businessName]</h1>
-// <p>[provider.category]</p>
-// <p>[provider.businessDescription]</p>
-//
-// ── EXAMPLE: Items loop ──
-// foreach ($items as $item):
-//   <a href="item-details.php?itemId=[item._id]">
-//     <h3>[item.itemName]</h3>
-//     <p>[item.listingType===donate ? Free : item.price.' SAR']</p>
-//   </a>
-// endforeach
-
-// ── Added: session + filter + fav info ──
 require_once '../../back-end/models/Favourite.php';
 
 $isLoggedIn = !empty($_SESSION['customerId']);
 $customerId = $_SESSION['customerId'] ?? null;
 $type       = $_GET['type'] ?? 'all';
 
-// ── Handle favourite toggle directly on this page ──
+$catMap = [];
+try {
+    $allCats = (new Category())->getAll();
+    foreach ($allCats as $c) {
+        $catMap[(string)$c['_id']] = $c['name'] ?? '';
+    }
+} catch (Throwable) {}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'toggle_fav' && $isLoggedIn) {
     $toggleItemId = trim($_POST['itemId'] ?? '');
     if ($toggleItemId) {
@@ -79,7 +66,6 @@ if ($type !== 'all') {
     $filteredItems = array_values(array_filter($items, fn($i) => ($i['listingType'] ?? '') === $type));
 }
 
-// ── Added: expiry alerts for bell icon ──
 require_once '../../back-end/models/Cart.php';
 $expiryAlerts = [];
 $alertCount   = 0;
@@ -177,11 +163,33 @@ if ($isLoggedIn) {
     .notif-source-tag.cart { background:#e8f7ee; color:#1a6b3a; }
     .notif-hours { color:#e07a1a; font-weight:700; }
 
-    /* ── BACK BUTTON ── */
-    .back-btn{position:absolute;top:50%;left:24px;transform:translateY(-50%);width:42px;height:42px;border-radius:50%;background:rgba(255,255,255,0.2);border:2px solid rgba(255,255,255,0.6);display:flex;align-items:center;justify-content:center;color:#fff;font-size:22px;font-weight:700;cursor:pointer;text-decoration:none;transition:background 0.2s;z-index:2}
-    .back-btn:hover{background:rgba(255,255,255,0.35)}
-    .hero-banner{background:linear-gradient(90deg,#1a3a6b 0%,#2a5db5 50%,#6aaee8 100%);height:150px;position:relative;overflow:hidden}
-    .hero-banner::before{content:'';position:absolute;inset:0;background:url('../../images/provider-banner.png') center/cover no-repeat;opacity:0.15}
+    /* ── HERO BANNER ── */
+    .hero-banner{background:linear-gradient(90deg,#1a3a6b 0%,#2a5db5 50%,#6aaee8 100%);height:120px;display:flex;align-items:center;padding:0 32px;gap:20px;position:relative;overflow:hidden}
+    .hero-banner::before{content:'';position:absolute;inset:0;background:url('../../images/provider-banner.png') center/cover no-repeat;opacity:0.15;z-index:0;pointer-events:none}
+
+    /* ── BACK BUTTON — matches cart.php exactly ── */
+    .back-btn {
+      width: 46px;
+      height: 46px;
+      border-radius: 50%;
+      background: #cdd9e8;
+      color: #1b3f92;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 28px;
+      line-height: 1;
+      flex-shrink: 0;
+      font-weight: 700;
+      text-decoration: none;
+      transition: background 0.2s;
+      position: relative;
+      z-index: 1;
+      font-family: 'Playfair Display', serif;
+      border: none;
+      cursor: pointer;
+    }
+    .back-btn:hover { background: #bfcee2; }
 
     /* ── CONTAINER ── */
     .container{max-width:1140px;margin:0 auto;padding:0 24px}
@@ -201,27 +209,40 @@ if ($isLoggedIn) {
     .filter-tab.active,.filter-tab:hover{background:#e07a1a;color:#fff}
 
     /* ── ITEMS GRID ── */
-    .items-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-bottom:48px}
-    @media(max-width:1000px){.items-grid{grid-template-columns:repeat(2,1fr)}}
-    @media(max-width:580px){.items-grid{grid-template-columns:1fr}}
+    .items-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:20px;margin-bottom:48px}
+    @media(max-width:1100px){.items-grid{grid-template-columns:repeat(3,1fr)}}
+    @media(max-width:800px){.items-grid{grid-template-columns:repeat(2,1fr)}}
+    @media(max-width:500px){.items-grid{grid-template-columns:1fr}}
 
     /* ── ITEM CARD ── */
-    .item-card{background:#fff;border:1.5px solid #dce7f5;border-radius:20px;overflow:hidden;box-shadow:0 4px 14px rgba(26,58,107,0.07);transition:transform 0.2s,box-shadow 0.2s;display:flex;flex-direction:column}
-    .item-card:hover{transform:translateY(-4px);box-shadow:0 12px 30px rgba(26,58,107,0.13)}
-    .card-top{position:relative;padding:14px 14px 0}
-    .prov-logo-sm{position:absolute;top:14px;left:14px;height:32px;max-width:90px;object-fit:contain}
-    .prov-name-sm{position:absolute;top:14px;left:14px;font-size:12px;font-weight:700;color:#7a8fa8;font-style:italic}
-    .fav-btn{position:absolute;top:10px;right:10px;width:34px;height:34px;border-radius:50%;border:none;background:transparent;cursor:pointer;display:grid;place-items:center;font-size:22px;color:#e04040;transition:transform 0.2s;z-index:2}
-    .fav-btn:hover{transform:scale(1.2)}
-    .item-img{width:100%;height:175px;object-fit:contain;margin-top:8px;padding:8px;border-radius:14px;background:#f8fbff}
-    .item-img-ph{width:100%;height:175px;background:linear-gradient(135deg,#e8f0ff,#dce7f5);border-radius:14px;margin-top:8px;display:grid;place-items:center;color:#7a8fa8;font-size:13px}
-    .card-body{padding:12px 14px 16px;flex:1;display:flex;flex-direction:column}
-    .name-row{display:flex;align-items:baseline;justify-content:space-between;gap:6px;margin-bottom:4px}
-    .item-name{font-weight:700;font-size:15px;color:#1a2a45}
-    .item-price{font-weight:700;font-size:15px;color:#e07a1a;white-space:nowrap}
+    .item-card{background:#f2f4f8;border-radius:24px;border:1.5px solid #c8d8ee;padding:18px 18px 20px;display:flex;flex-direction:column;gap:0;box-shadow:0 2px 14px rgba(26,58,107,0.07);transition:box-shadow 0.2s,transform 0.2s}
+    .item-card:hover{box-shadow:0 8px 28px rgba(26,58,107,0.13);transform:translateY(-3px)}
+    .card-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+    .prov-logo-box{display:flex;align-items:center;gap:8px}
+    .prov-logo-circle{width:32px;height:32px;background:#c8d8ee;border-radius:50%;flex-shrink:0;overflow:hidden;display:flex;align-items:center;justify-content:center}
+    .prov-logo-circle img{width:100%;height:100%;object-fit:cover}
+    .prov-logo-name{font-size:15px;font-weight:700;color:#1a3a6b;font-family:'Playfair Display',serif}
+
+    .fav-btn{background:none;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;transition:transform 0.2s}
+    .fav-btn:hover{transform:scale(1.15)}
+    .fav-btn svg{width:28px;height:28px;overflow:visible}
+    .fav-btn .heart-path{fill:none;stroke:#8b1a1a;stroke-width:2;transition:fill 0.2s,stroke 0.2s}
+    .fav-btn.liked .heart-path{fill:#c0392b;stroke:#c0392b}
+
+    .cat-tag{display:inline-block;background:#e8f0ff;color:#2255a4;font-size:11px;font-weight:700;font-family:'DM Sans',sans-serif;border-radius:50px;padding:3px 10px;margin-bottom:6px;letter-spacing:0.04em;text-transform:uppercase}
+    .item-img-box{width:100%;height:130px;background:#d8e6f5;border-radius:14px;margin-bottom:16px;overflow:hidden;display:flex;align-items:center;justify-content:center}
+    .item-img-box img{width:100%;height:100%;object-fit:cover;border-radius:14px}
+    .item-img-ph-text{font-size:13px;color:#8aa3c0}
+    .card-divider{width:100%;height:1.5px;background:#c0d2e8;margin-bottom:14px}
+    .card-body{display:flex;flex-direction:column;gap:8px}
+    .name-row{display:flex;align-items:center;justify-content:space-between;gap:8px}
+    .item-name{font-size:18px;font-weight:700;color:#1a3a6b;font-family:'Playfair Display',serif}
+    .price-row{display:flex;align-items:center;gap:5px}
+    .item-price{font-size:16px;font-weight:700;color:#e07a1a}
     .price-free{color:#1a6b3a}
-    .item-desc{font-size:13px;color:#7a8fa8;line-height:1.5;margin-bottom:12px;flex:1;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-    .view-btn{display:inline-block;background:#1a3a6b;color:#fff;border-radius:50px;padding:8px 20px;font-weight:700;font-size:13px;text-align:center;transition:background 0.2s;align-self:flex-start}
+    .sar-box{width:22px;height:22px;background:#c8d8ee;border-radius:4px;flex-shrink:0}
+    .item-desc{font-size:13px;color:#4a6a9a;line-height:1.5;font-family:'Playfair Display',serif}
+    .view-btn{background:#1a3a6b;color:#fff;border:none;border-radius:50px;padding:12px 0;font-size:15px;font-family:'Playfair Display',serif;cursor:pointer;font-weight:700;width:80%;text-align:center;margin:8px auto 0;display:block;transition:background 0.2s;text-decoration:none}
     .view-btn:hover{background:#2255a4}
 
     /* ── EMPTY / NOT FOUND ── */
@@ -320,7 +341,6 @@ if ($isLoggedIn) {
       </svg>
     </button>
     <?php endif; ?>
-    <!-- Auth modal -->
     <div id="authModal" style="display:none;position:fixed;inset:0;background:rgba(12,22,45,0.5);z-index:9999;justify-content:center;align-items:center;" onclick="if(event.target===this)this.style.display='none'">
       <div style="background:#fff;border-radius:24px;padding:44px 40px;max-width:400px;width:90%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.2);">
         <h3 style="font-size:22px;font-weight:700;color:#1a3a6b;font-family:'Playfair Display',serif;margin-bottom:10px;">Sign in to continue</h3>
@@ -344,8 +364,8 @@ if ($isLoggedIn) {
 <?php else: ?>
 
 <!-- ── HERO BANNER ── -->
-<div class="hero-banner" style="position:relative;">
-  <a class="back-btn" href="javascript:history.back()" title="Go back">&#8249;</a>
+<div class="hero-banner">
+  <a class="back-btn" href="javascript:history.back()">‹</a>
 </div>
 
 <div class="container">
@@ -390,40 +410,61 @@ if ($isLoggedIn) {
         $isSaved = in_array($itemId, $savedIds, true);
         $provLogo = $provider['businessLogo'] ?? '';
         $provName = $provider['businessName'] ?? '';
+        $itemCatId = (string)($item['categoryId'] ?? '');
+        $catName   = $catMap[$itemCatId] ?? '';
       ?>
       <div class="item-card">
         <div class="card-top">
-          <?php if ($provLogo): ?>
-            <img class="prov-logo-sm" src="<?= htmlspecialchars($provLogo) ?>" alt="<?= htmlspecialchars($provName) ?>">
-          <?php else: ?>
-            <span class="prov-name-sm"><?= htmlspecialchars($provName) ?></span>
-          <?php endif; ?>
-
+          <div class="prov-logo-box">
+            <div class="prov-logo-circle">
+              <?php if ($provLogo): ?>
+                <img src="<?= htmlspecialchars($provLogo) ?>" alt="<?= htmlspecialchars($provName) ?>">
+              <?php else: ?>
+                <span style="font-size:12px;font-weight:700;color:#2255a4;"><?= htmlspecialchars(mb_strtoupper(mb_substr($provName,0,1))) ?></span>
+              <?php endif; ?>
+            </div>
+            <span class="prov-logo-name"><?= htmlspecialchars($provName) ?></span>
+          </div>
           <?php if ($isLoggedIn): ?>
             <form method="post" style="display:inline">
               <input type="hidden" name="action" value="toggle_fav">
               <input type="hidden" name="itemId" value="<?= htmlspecialchars($itemId) ?>">
-              <button class="fav-btn" type="submit"><?= $isSaved ? '❤️' : '🤍' ?></button>
+              <button class="fav-btn <?= $isSaved ? 'liked' : '' ?>" type="submit">
+                <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path class="heart-path" d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+              </button>
             </form>
           <?php else: ?>
-            <a class="fav-btn" href="../shared/login.php">🤍</a>
-          <?php endif; ?>
-
-          <?php if (!empty($item['photoUrl'])): ?>
-            <img class="item-img" src="<?= htmlspecialchars($item['photoUrl']) ?>" alt="<?= htmlspecialchars($item['itemName'] ?? '') ?>">
-          <?php else: ?>
-            <div class="item-img-ph">No image</div>
+            <a class="fav-btn" href="../shared/login.php">
+              <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path class="heart-path" d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+            </a>
           <?php endif; ?>
         </div>
+
+        <?php if ($catName): ?>
+          <span class="cat-tag"><?= htmlspecialchars($catName) ?></span>
+        <?php endif; ?>
+
+        <div class="item-img-box">
+          <?php if (!empty($item['photoUrl'])): ?>
+            <img src="<?= htmlspecialchars($item['photoUrl']) ?>" alt="<?= htmlspecialchars($item['itemName'] ?? '') ?>">
+          <?php else: ?>
+            <span class="item-img-ph-text">No image</span>
+          <?php endif; ?>
+        </div>
+
+        <div class="card-divider"></div>
 
         <div class="card-body">
           <div class="name-row">
             <span class="item-name"><?= htmlspecialchars($item['itemName'] ?? 'Item') ?></span>
-            <?php if ($isFree): ?>
-              <span class="item-price price-free">Free</span>
-            <?php else: ?>
-              <span class="item-price"><?= number_format((float)($item['price'] ?? 0), 2) ?> ﷼</span>
-            <?php endif; ?>
+            <div class="price-row">
+              <?php if ($isFree): ?>
+                <span class="item-price price-free">Free</span>
+              <?php else: ?>
+                <span class="item-price"><?= number_format((float)($item['price'] ?? 0), 2) ?></span>
+                <div class="sar-box"></div>
+              <?php endif; ?>
+            </div>
           </div>
           <p class="item-desc"><?= htmlspecialchars($item['description'] ?? '') ?></p>
           <a class="view-btn" href="item-details.php?itemId=<?= urlencode($itemId) ?>">View item</a>

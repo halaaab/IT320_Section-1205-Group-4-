@@ -5,7 +5,7 @@ require_once __DIR__ . '/BaseModel.php';
 class Provider extends BaseModel {
     protected string $collectionName = 'providers';
 
-    const CATEGORIES = ['Bakery', 'Coffee shop', 'Super Market', 'Restaurant'];
+    const CATEGORIES = ['Bakery', 'Coffee shop', 'Super Market', 'Restaurant','Individual'];
 
     // ── Create a new provider ──
     public function create(array $data): string {

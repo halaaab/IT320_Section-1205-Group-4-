@@ -428,6 +428,108 @@ $hasErrors = !empty($errors);
       font-size: 13px;
       font-family: 'Playfair Display', serif;
     }
+    @media (max-width: 768px) {
+  .page {
+    display: flex;
+    flex-direction: column;
+    min-height: auto;
+    background-image: none;
+  }
+
+  .left-panel {
+    order: 1;
+      padding: 200px 20px 32px;
+    align-items: center;
+  }
+
+  .form-area {
+    margin-top: 0;
+    max-width: 100%;
+  }
+
+  .form-title {
+    font-size: 34px;
+    margin-bottom: 12px;
+  }
+
+  .form-subtitle {
+    font-size: 16px;
+    margin-bottom: 28px;
+  }
+
+  .role-selector {
+    flex-direction: row;
+    gap: 12px;
+    max-width: 100%;
+  }
+
+  .role-btn {
+    padding: 14px 18px;
+    font-size: 15px;
+  }
+
+  .back-btn {
+    top: 22px;
+    left: 20px;
+    width: 38px;
+    height: 38px;
+    font-size: 22px;
+  }
+
+
+
+  .login-form {
+    gap: 18px;
+  }
+
+.form-buttons {
+  display: flex;
+  flex-direction: row;
+  gap: 10px;
+  width: 100%;
+}
+
+.btn-back,
+.btn-submit {
+  width: 50%;
+  min-width: 0;
+}
+
+  .right-panel {
+  display: none;
+}
+footer {
+  padding: 20px 16px;
+}
+
+.footer-top {
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+}
+
+.footer-divider {
+  display: none;
+}
+
+.footer-bottom {
+  font-size: 11px;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px;
+}
+
+.footer-bottom img {
+  height: 24px !important;
+}
+
+.social-icon {
+  width: 36px;
+  height: 36px;
+  font-size: 13px;
+}
+}
+
   </style>
 </head>
 <body>
