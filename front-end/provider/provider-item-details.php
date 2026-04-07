@@ -1,12 +1,12 @@
+
 <?php
 session_start();
 
 require_once '../../back-end/config/database.php';
 require_once '../../back-end/models/BaseModel.php';
 require_once '../../back-end/models/Provider.php';
-require_once '../../back-end/models/Item.php';
-require_once '../../back-end/models/Category.php';
-require_once '../../back-end/models/PickupLocation.php';
+require_once '../../back-end/models/Order.php';
+require_once '../../back-end/models/OrderItem.php';
 
 if (empty($_SESSION['providerId'])) {
 header('Location: ../shared/login.php');
@@ -20,188 +20,126 @@ exit;
 }
 
 $providerId = $_SESSION['providerId'];
-$itemId = $_GET['id'] ?? '';
-$editMode = isset($_GET['edit']);
+$orderId = $_GET['orderId'] ?? '';
+$itemId  = $_GET['itemId'] ?? '';
 
 $providerModel = new Provider();
-$itemModel = new Item();
-$categoryModel = new Category();
-$locationModel = new PickupLocation();
+$orderModel = new Order();
+$orderItemModel = new OrderItem();
 
 $provider = $providerModel->findById($providerId);
-$item = $itemId ? $itemModel->findById($itemId) : null;
-
-if (!$item) {
-die('Item not found.');
-}
 
 $providerName = $provider['businessName'] ?? 'Provider';
 $providerEmail = $provider['email'] ?? '';
+$providerPhone = $provider['phoneNumber'] ?? '';
 $providerLogo = $provider['businessLogo'] ?? '';
-$firstName = explode(' ', $providerName)[0];
+$firstName = explode(' ', $providerName)[0] ?? 'Provider';
 
-$categoryName = 'Unknown category';
-if (!empty($item['categoryId'])) {
-$category = $categoryModel->findById((string)$item['categoryId']);
-if ($category && !empty($category['name'])) {
-$categoryName = $category['name'];
+if (empty($orderId)) {
+die('Order not found.');
+}
+
+$order = $orderModel->findById($orderId);
+
+if (!$order) {
+die('Order not found.');
+}
+
+$orderItems = $orderItemModel->getByOrder($orderId);
+
+/* نجيب فقط الآيتمات الخاصة بهذا البروفايدر */
+$providerItems = [];
+
+foreach ($orderItems as $item) {
+if ((string)($item['providerId'] ?? '') === (string)$providerId) {
+$providerItems[] = $item;
 }
 }
 
-$locationName = 'Pickup location';
-$locationAddress = '';
-$locationCity = '';
-$locationZip = '';
-$locationLat = null;
-$locationLng = null;
-
-$pickupLocation = null;
-
-if (!empty($item['pickupLocationId'])) {
-    $pickupLocation = $locationModel->findById((string)$item['pickupLocationId']);
+if (empty($providerItems)) {
+die('You are not allowed to view this order.');
 }
 
-if ($pickupLocation) {
-    $locationName = $pickupLocation['locationName'] ?? ($pickupLocation['label'] ?? 'Pickup location');
-    $locationAddress = $pickupLocation['street'] ?? '';
-    $locationCity = $pickupLocation['city'] ?? '';
-    $locationZip = $pickupLocation['zip'] ?? '';
+// بما أن التصميم كارد واحد، نعرض أول item افتراضياً
+//$orderItem = $providerItems[0]; 
 
-    $locationLat = $pickupLocation['lat'] ?? ($pickupLocation['coordinates']['lat'] ?? null);
-    $locationLng = $pickupLocation['lng'] ?? ($pickupLocation['coordinates']['lng'] ?? null);
-}
+$orderItem = null;
 
-$itemName = $item['itemName'] ?? 'Item';
-$itemDescription = $item['description'] ?? '';
-$itemPhoto = $item['photoUrl'] ?? '';
-$itemType = ucfirst($item['listingType'] ?? 'N/A');
-$pickupDate = '';
-if (!empty($item['pickupDate']) && $item['pickupDate'] instanceof MongoDB\BSON\UTCDateTime) {
-$pickupDate = $item['pickupDate']->toDateTime()->format('Y-m-d');
-}
-$itemPrice = (($item['listingType'] ?? '') === 'donate')
-? 'Donation'
-: number_format((float)($item['price'] ?? 0), 2) . ' SAR';
-
-$quantity = (int)($item['quantity'] ?? 1);
-if ($quantity < 1) {
-    $quantity = 1;
-}
-
-$expiryDate = '';
-if (!empty($item['expiryDate']) && $item['expiryDate'] instanceof MongoDB\BSON\UTCDateTime) {
-$expiryDate = $item['expiryDate']->toDateTime()->format('Y-m-d');
-}
-
-$today = date('Y-m-d');
-
-$pickupTimes = $item['pickupTimes'] ?? [];
-$errors = [];
-
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-
-    $itemName = trim($_POST['itemName'] ?? '');
-    $itemDescription = trim($_POST['description'] ?? '');
-    $listingType = trim($_POST['listingType'] ?? '');
-    $price = trim($_POST['price'] ?? '');
-    $categoryId = trim($_POST['categoryId'] ?? '');
-    $quantity = (int)($_POST['quantity'] ?? ($item['quantity'] ?? 1));
-    $pickupLocationId = trim($_POST['pickupLocationId'] ?? '');
-    $expiryDateInput = trim($_POST['expiryDate'] ?? '');
-    $pickupDateInput = trim($_POST['pickupDate'] ?? '');
-
-    if ($quantity < 1) {
-        $quantity = 1;
-    }
-
-    $pickupTimes = $_POST['pickupTimes'] ?? [];
-    if (!is_array($pickupTimes)) {
-        $pickupTimes = [];
-    }
-    $pickupTimes = array_values(array_filter(array_map('trim', $pickupTimes)));
-
-    $itemName = ($itemName !== '') ? $itemName : ($item['itemName'] ?? '');
-    $itemDescription = ($itemDescription !== '') ? $itemDescription : ($item['description'] ?? '');
-    $listingType = ($listingType !== '') ? $listingType : ($item['listingType'] ?? 'donate');
-    $categoryId = ($categoryId !== '') ? $categoryId : (string)($item['categoryId'] ?? '');
-    $pickupLocationId = ($pickupLocationId !== '') ? $pickupLocationId : (string)($item['pickupLocationId'] ?? '');
-    $pickupTimes = !empty($pickupTimes) ? $pickupTimes : ($item['pickupTimes'] ?? []);
-
-    if ($listingType === 'sell' && ($price === '' || (float)$price <= 0)) {
-        $errors['price'] = 'Price is required when type is Sell.';
-    }
-
-    if ($expiryDateInput === '' && !empty($item['expiryDate'])) {
-        $expiryDateInput = $item['expiryDate']->toDateTime()->format('Y-m-d');
-    }
-
-    if ($pickupDateInput === '' && !empty($item['pickupDate'])) {
-        $pickupDateInput = $item['pickupDate']->toDateTime()->format('Y-m-d');
-    }
-
-    if ($listingType === 'donate') {
-        $price = 0;
-    } else {
-        $price = ($price !== '') ? (float)$price : (float)($item['price'] ?? 0);
-    }
-
-    $newPhotoPath = $item['photoUrl'] ?? '';
-    if (isset($_FILES['itemPhoto']) && $_FILES['itemPhoto']['error'] === UPLOAD_ERR_OK) {
-        $uploadDir = '../../uploads/items/';
-        if (!is_dir($uploadDir)) {
-            mkdir($uploadDir, 0777, true);
-        }
-
-        $ext = strtolower(pathinfo($_FILES['itemPhoto']['name'], PATHINFO_EXTENSION));
-        $allowed = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
-
-        if (in_array($ext, $allowed)) {
-            $fileName = time() . '_' . basename($_FILES['itemPhoto']['name']);
-            $targetPath = $uploadDir . $fileName;
-
-            if (move_uploaded_file($_FILES['itemPhoto']['tmp_name'], $targetPath)) {
-                $newPhotoPath = '../../uploads/items/' . $fileName;
-            }
+if (!empty($itemId)) {
+    foreach ($providerItems as $item) {
+        if ((string)($item['_id'] ?? '') === (string)$itemId) {
+            $orderItem = $item;
+            break;
         }
     }
+}
 
-    if (empty($errors)) {
-        $itemModel->updateById($itemId, [
-            'itemName' => $itemName,
-            'description' => $itemDescription,
-            'listingType' => $listingType,
-            'price' => ($listingType === 'donate') ? 0 : (float)$price,
-            'categoryId' => new MongoDB\BSON\ObjectId($categoryId),
-            'quantity' => $quantity,
-            'pickupLocationId' => new MongoDB\BSON\ObjectId($pickupLocationId),
-            'expiryDate' => new MongoDB\BSON\UTCDateTime(strtotime($expiryDateInput) * 1000),
-            'pickupDate' => new MongoDB\BSON\UTCDateTime(strtotime($pickupDateInput) * 1000),
-            'pickupTimes' => $pickupTimes,
-            'photoUrl' => $newPhotoPath,
-        ]);
+if (!$orderItem && !empty($providerItems)) {
+    $orderItem = $providerItems[0];
+}
 
-        header('Location: provider-item-details.php?id=' . urlencode($itemId));
-        exit;
-    } else {
-        $editMode = true;
+if (!$orderItem) {
+    die('Item not found or not allowed.');
+}
+
+$isDonation = ((float)($orderItem['price'] ?? 0) <= 0);
+$itemStatus = strtolower(trim($orderItem['itemStatus'] ?? 'pending'));
+$statusText = ($itemStatus === 'completed') ? 'Completed' : 'Pending';
+
+$displayDate = '';
+if (!empty($order['placedAt']) && $order['placedAt'] instanceof MongoDB\BSON\UTCDateTime) {
+$displayDate = $order['placedAt']->toDateTime()->format('j F Y');
+}
+
+/* لو ضغط Mark As Completed */
+ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['mark_completed'])) {
+    $orderItemModel->updateById(
+        (string)$orderItem['_id'],
+        ['itemStatus' => 'completed']
+    );
+
+    // ── Notify the customer ──
+    require_once '../../back-end/models/Notification.php';
+    $customerId_ = (string)($order['customerId'] ?? '');
+    if ($customerId_) {
+        (new Notification())->notifyOrderCompleted(
+            $customerId_,
+            $orderId,
+            $order['orderNumber'] ?? $orderId
+        );
     }
-}
 
-if (isset($_GET['delete']) && !empty($itemId)) {
-$itemModel->deleteById($itemId);
-header('Location: provider-items.php');
-exit;
+    // Re-fetch provider items for this order after update
+    $updatedOrderItems = $orderItemModel->getByOrder($orderId);
+    $updatedProviderItems = [];
+    foreach ($updatedOrderItems as $item) {
+        if ((string)($item['providerId'] ?? '') === (string)$providerId) {
+            $updatedProviderItems[] = $item;
+        }
+    }
+    $allCompleted = true;
+    foreach ($updatedProviderItems as $item) {
+        if (strtolower(trim($item['itemStatus'] ?? 'pending')) !== 'completed') {
+            $allCompleted = false;
+            break;
+        }
+    }
+    if ($allCompleted) {
+        header('Location: provider-orders.php?tab=completed');
+    } else {
+        header('Location: provider-orders.php?tab=pending');
+    }
+    exit;
 }
-
 ?>
 
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <title>RePlate – Edit Item</title>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <title>RePlate – Order #<?= htmlspecialchars($order['orderNumber'] ?? '') ?></title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: 'Playfair Display', serif; background: #f4f7fc; min-height: 100vh; display: flex; flex-direction: column; }
 
     /* ── NAVBAR ── */
@@ -247,385 +185,104 @@ exit;
     .sidebar-social-icon { width: 28px; height: 28px; border-radius: 50%; border: 1.5px solid rgba(255,255,255,0.4); display: flex; align-items: center; justify-content: center; color: rgba(255,255,255,0.8); font-size: 11px; font-weight: 700; text-decoration: none; transition: background 0.2s; }
     .sidebar-social-icon:hover { background: rgba(255,255,255,0.15); }
     .sidebar-footer-copy { color: rgba(255,255,255,0.45); font-size: 10px; display: flex; align-items: center; justify-content: center; gap: 4px; flex-wrap: wrap; }
-    .main{
+    .main-content {
 flex: 1;
-padding: 50px 30px;
+padding: 30px 20px;
+background: #eef3f9;
 display: flex;
 justify-content: center;
 align-items: flex-start;
 }
 
-.card-wrapper{
+.order-details-wrapper {
 width: 100%;
-max-width: 880px;
-}
-
-.item-card{
-width: 100%;
-background: #f7fbff;
-border: 1px solid #d7e1ee;
-border-radius: 24px;
-padding: 30px 32px;
+max-width: 620px;
 display: flex;
-justify-content: space-between;
-gap: 42px;
-box-shadow: 0 8px 25px rgba(26,58,107,0.06);
-}
-
-.item-info{
-flex: 1;
-}
-
-.item-info h2{
-font-size: 22px;
-color: #142c8e;
-margin-bottom: 18px;
-}
-
-.item-info p{
-font-size: 15px;
-color: #243a5e;
-margin-bottom: 10px;
-line-height: 1.8;
-}
-
-.item-info strong{
-color: #142c8e;
-font-weight: 700;
-}
-
-.pickup-times-block{
-margin-top: 8px;
-}
-
-.pickup-times-list{
-display: flex;
-flex-wrap: wrap;
-gap: 10px;
-margin-top: 10px;
-}
-
-.time-chip{
-display: inline-block;
-background: #ffffff;
-border: 1px solid #d7e1ee;
-color: #243a5e;
-border-radius: 999px;
-padding: 7px 12px;
-font-size: 13px;
-line-height: 1.4;
-}
-
-.edit-btn{
-margin-top: 18px;
-display: inline-block;
-background: #e07a1a;
-color: #fff;
-padding: 10px 24px;
-border-radius: 40px;
-font-size: 14px;
-text-decoration: none;
-font-weight: 700;
-transition: 0.2s;
-}
-
-.edit-btn:hover{
-background: #c96a10;
-}
-
-.location-side{
-width: 245px;
+flex-direction: column;
+align-items: center;
 flex-shrink: 0;
 }
 
-.location-title{
-font-size: 19px;
-color: #142c8e;
-margin-bottom: 14px;
+.order-title {
+font-size: 30px;
+color: #183482;
+margin-bottom: 22px;
 text-align: center;
+font-weight: 700;
 }
 
-.location-card{
-background: #eef5fb;
-border: 1px solid #d7e1ee;
-border-radius: 20px;
-padding: 14px;
-text-align: center;
-}
-
-.location-card img{
+.order-details-card {
 width: 100%;
-height: 160px;
-object-fit: cover;
-border-radius: 16px;
-margin-bottom: 10px;
+background: #eef4fb;
+border: 1.5px solid #cbd7e6;
+border-radius: 24px;
+padding: 22px 24px;
+display: flex;
+flex-direction: column;
+align-items: center;
+gap: 68px;
 }
 
-.location-placeholder{
-width: 100%;
-height: 160px;
-border-radius: 16px;
-background: #dce7f3;
+.order-details-img {
+width: 95px;
+height: 95px;
+object-fit: contain;
+object-position: center;
+background: #fff;
+display: block;
+}
+
+.order-details-placeholder {
+width: 95px;
+height: 95px;
+border-radius: 14px;
+background: #dce6f2;
 display: flex;
 align-items: center;
 justify-content: center;
 color: #6f86a8;
-font-size: 14px;
-margin-bottom: 10px;
-}
-
-.location-card p{
 font-size: 13px;
-color: #4c638a;
-line-height: 1.6;
-margin-bottom: 4px;
-}
-
-@media (max-width: 900px){
-.item-card{
-flex-direction: column;
-}
-
-.location-side{
-width: 100%;
-}
-}
-.profile-edit-btn{ background: #e07a1a; color: #fff; border: none; border-radius: 50px; padding: 12px 28px; font-size: 16px; font-weight: 700; font-family: 'Playfair Display', serif; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: background 0.2s, transform 0.15s; text-decoration: none; }
-
-.profile-edit-btn:hover{ background: #c96a10; transform: translateY(-1px); }
-
-.profile-info-grid{
-display:grid;
-grid-template-columns:1fr;
-gap:18px;
-}
-.btn-save { background: #1a3a6b; color: #fff; border: none; border-radius: 50px; padding: 12px 28px; font-size: 16px; font-weight: 700; font-family: 'Playfair Display', serif; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: background 0.2s, transform 0.15s; }
-    .btn-save:hover { background: #2255a4; transform: translateY(-1px); }
-    .btn-cancel { background: transparent; color: #8a9ab5; border: 2px solid #c8d8ee; border-radius: 50px; padding: 10px 22px; font-size: 15px; font-weight: 700; font-family: 'Playfair Display', serif; cursor: pointer; transition: border-color 0.2s, color 0.2s; text-decoration: none; }
-    .btn-cancel:hover { border-color: #8a9ab5; color: #4a6a9a; }
-    .item-action-row{
-display:flex;
-justify-content:flex-end;
-align-items:center;
-gap:12px;
-margin-top:20px;
-flex-wrap:wrap;
-padding-right:20px;
-}
-
-.profile-edit-btn{
-background:#e07a1a;
-color:#fff;
-border:none;
-border-radius:40px;
-padding:10px 22px;
-font-size:14px;
-font-weight:700;
-font-family:'Playfair Display', serif;
-cursor:pointer;
-display:inline-flex;
-align-items:center;
-justify-content:center;
-gap:8px;
-text-decoration:none;
-transition:background 0.2s, transform 0.15s;
-width:auto;
-min-width:120px;
-}
-
-.profile-edit-btn:hover{
-background:#c96a10;
-transform:translateY(-1px);
-}
-
-.btn-save{
-background:#1a3a6b;
-color:#fff;
-border:none;
-border-radius:40px;
-padding:10px 22px;
-font-size:14px;
-font-weight:700;
-font-family:'Playfair Display', serif;
-cursor:pointer;
-display:inline-flex;
-align-items:center;
-justify-content:center;
-gap:8px;
-transition:background 0.2s, transform 0.15s;
-width:auto;
-min-width:120px;
-}
-
-.btn-save:hover{
-background:#2255a4;
-transform:translateY(-1px);
-}
-
-.btn-cancel{
-background:transparent;
-color:#8a9ab5;
-border:2px solid #c8d8ee;
-border-radius:40px;
-padding:8px 20px;
-font-size:14px;
-font-weight:700;
-font-family:'Playfair Display', serif;
-cursor:pointer;
-transition:border-color 0.2s, color 0.2s;
-text-decoration:none;
-display:inline-flex;
-align-items:center;
-justify-content:center;
-width:auto;
-min-width:110px;
-}
-
-.btn-cancel:hover{
-border-color:#8a9ab5;
-color:#4a6a9a;
-}
-
-.btn-delete{
-background: transparent;
-color: #e74c3c;
-border: 2px solid #e74c3c;
-border-radius: 40px;
-padding: 8px 20px;
-font-size: 14px;
-font-weight: 700;
-font-family: 'Playfair Display', serif;
-cursor: pointer;
-transition: all 0.2s;
-text-decoration: none;
-display: inline-flex;
-align-items: center;
-justify-content: center;
-width: auto;
-min-width: 110px;
-}
-
-.btn-delete:hover{
-background: #e74c3c;
-color: #fff;
-}
-.edit-input{
-width:100%;
-margin-top:6px;
-padding:10px 14px;
-border:1.5px solid #cfdbea;
-border-radius:14px;
-font-family:'Playfair Display', serif;
-font-size:14px;
-color:#243a5e;
-background:#fff;
-outline:none;
-}
-
-.edit-textarea{
-width:100%;
-margin-top:6px;
-padding:12px 14px;
-border:1.5px solid #cfdbea;
-border-radius:14px;
-font-family:'Playfair Display', serif;
-font-size:14px;
-color:#243a5e;
-background:#fff;
-outline:none;
-min-height:100px;
-resize:vertical;
-}
-
-.pickup-time-input{
-margin-bottom:8px;
-}
-
-.btn-delete{
-background: transparent !important;
-color: #e74c3c !important;
-border: 2px solid #e74c3c !important;
-border-radius: 40px;
-padding: 8px 20px;
-font-size: 14px;
-font-weight: 700;
-font-family: 'Playfair Display', serif;
-cursor: pointer;
-transition: all 0.2s;
-text-decoration: none;
-display: inline-flex;
-align-items: center;
-justify-content: center;
-min-width: 110px;
-}
-
-.btn-delete:hover{
-background: #e74c3c !important;
-color: #fff !important;
-}
-.small-time-select{
-width:110px;
-height:42px;
-border:1.5px solid #cfdbea;
-border-radius:999px;
-padding:0 14px;
-font-family:'Playfair Display', serif;
-font-size:15px;
-color:#183482;
-background:#fff;
-outline:none;
-cursor:pointer;
-}
-
-.time-picker-row{
-display:flex;
-gap:10px;
-align-items:center;
-flex-wrap:wrap;
-margin-top:12px;
-}
-
-.add-time-btn{
-border:none;
-background:#ea8b2c;
-color:#fff;
-border-radius:999px;
-padding:10px 18px;
-font-family:'Playfair Display', serif;
-font-size:16px;
-cursor:pointer;
-}
-
-.add-time-btn:hover{
-background:#d87917;
-}
-.field-error{
-color:#d64545;
-font-size:13px;
-margin-top:6px;
-display:none;
-}
-
-.field-error.show{
-display:block;
-}
-
-.edit-input.error,
-.edit-textarea.error{
-border:1.5px solid #d64545 !important;
-}
-.location-map{
-width: 100%;
-height: 160px;
-border-radius: 16px;
-overflow: hidden;
-margin-bottom: 10px;
+text-align: center;
+padding: 8px;
 border: 1px solid #d7e1ee;
 }
 
-#itemPickupMap{
-width: 100%;
-height: 100%;
+.order-details-info p {
+font-size: 18px;
+color: #183482;
+margin-bottom: 12px;
+line-height: 1.6;
+}
+
+.complete-form {
+    width: 100%;
+    display: flex;
+    justify-content: center;   /* center button */
+    margin-top: 10px;
+}
+
+.complete-btn {
+background: #e48a2a;
+color: #fff;
+border: none;
+border-radius: 999px;
+padding: 11px 26px;
+font-size: 18px;
+font-weight: 700;
+font-family: 'Playfair Display', serif;
+cursor: pointer;
+transition: 0.2s;
+}
+
+.complete-btn:hover {
+background: #cf7720;
+}
+
+.currency-icon {
+height: 14px;
+object-fit: contain;
+vertical-align: middle;
+margin-left: 4px;
 }
 .page-header {
   margin-bottom: 28px;
@@ -647,33 +304,294 @@ height: 100%;
 .page-header h1 span {
   -webkit-text-fill-color: transparent;
 }
+/* ── MOBILE HEADER / HAMBURGER ── */
+.hamburger {
+  display: none;
+  flex-direction: column;
+  gap: 5px;
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: 6px;
+}
+
+.hamburger span {
+  display: block;
+  width: 24px;
+  height: 2.5px;
+  background: #fff;
+  border-radius: 2px;
+  transition: all 0.3s;
+}
+
+.hamburger.open span:nth-child(1) {
+  transform: translateY(7.5px) rotate(45deg);
+}
+
+.hamburger.open span:nth-child(2) {
+  opacity: 0;
+}
+
+.hamburger.open span:nth-child(3) {
+  transform: translateY(-7.5px) rotate(-45deg);
+}
+
+.mobile-menu {
+  display: none;
+  position: fixed;
+  inset: 0;
+  top: 72px;
+  background: linear-gradient(180deg, #1a3a6b 0%, #2255a4 100%);
+  z-index: 99;
+  flex-direction: column;
+  padding: 24px 20px;
+}
+
+.mobile-menu.open {
+  display: flex;
+}
+
+.mobile-menu a {
+  color: rgba(255,255,255,0.9);
+  font-size: 22px;
+  font-weight: 700;
+  padding: 18px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.12);
+  text-decoration: none;
+}
+
+.mobile-search {
+  margin-top: 22px;
+  position: relative;
+}
+
+.mobile-search svg {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.mobile-search input {
+  width: 100%;
+  background: rgba(255,255,255,0.15);
+  border: 1.5px solid rgba(255,255,255,0.4);
+  border-radius: 50px;
+  padding: 12px 16px 12px 40px;
+  color: #fff;
+  outline: none;
+  font-family: 'Playfair Display', serif;
+}
+
+.mobile-search input::placeholder {
+  color: rgba(255,255,255,0.6);
+}
+.search-dropdown {
+  display: none;
+  position: absolute;
+  top: calc(100% + 10px);
+  left: 0;
+  width: 360px;
+  max-width: calc(100vw - 40px);
+  background: #fff;
+  border-radius: 18px;
+  border: 1.5px solid #e0eaf5;
+  box-shadow: 0 12px 40px rgba(26,58,107,0.18);
+  z-index: 9999;
+  overflow: hidden;
+}
+
+.search-dropdown.visible {
+  display: block;
+}
+
+.sd-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  text-decoration: none;
+  color: inherit;
+  transition: background 0.15s;
+}
+
+.sd-row:hover {
+  background: #f4f8ff;
+}
+
+.sd-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: #edf3fb;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #1a3a6b;
+  flex-shrink: 0;
+}
+
+.sd-info {
+  min-width: 0;
+}
+
+.sd-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: #1a3a6b;
+}
+
+.sd-sub {
+  font-size: 12px;
+  color: #7a8fa8;
+  margin-top: 2px;
+}
+
+.mobile-search {
+  position: relative;
+}
+
+.mobile-search .search-dropdown {
+  top: calc(100% + 12px);
+  left: 0;
+  width: 100%;
+}
+
+@media (max-width: 768px) {
+  .hamburger {
+    display: flex;
+  }
+
+  .sidebar {
+    display: none;
+  }
+
+  .page-body {
+    display: block;
+  }
+
+  .nav-search-wrap {
+    display: none;
+  }
+
+  .nav-provider-text {
+    display: none;
+  }
+
+  nav.navbar {
+    padding: 0 16px;
+  }
+
+  .nav-logo {
+    height: 70px;
+  }
+
+  .main-content {
+    width: 100%;
+    padding: 20px 16px;
+    margin: 0;
+    align-items: stretch;
+  }
+
+  .orders-page-wrap {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .tabs-row {
+    display: flex;
+    gap: 8px;
+    width: 100%;
+  }
+
+  .tab-btn {
+    flex: 1;
+    min-width: 0;
+    width: auto;
+    padding: 10px 8px;
+    font-size: 14px;
+  }
+
+  .orders-list {
+    width: 100%;
+    max-width: 100%;
+    padding: 16px;
+    gap: 16px;
+  }
+
+  .order-top,
+  .order-left-block,
+  .order-bottom {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .order-item-img,
+  .order-placeholder {
+    width: 82px;
+    height: 82px;
+  }
+
+  .order-price,
+  .donation-text {
+    margin-left: 0;
+  }
+
+  .view-order-btn {
+    margin-right: 0;
+  }
+}
     </style>
 </head>
 <body>
-  <nav class="navbar">
+ <nav class="navbar">
     <div class="nav-left">
       <img class="nav-logo" src="../../images/Replate-white.png" alt="RePlate"/>
     </div>
-    <div class="nav-right">
-      <div class="nav-search-wrap">
-        <svg width="16" height="16" fill="none" stroke="#fff" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
-        <input type="text" placeholder="Search......"/>
-      </div>
-      <div class="nav-provider-info">
-        <div class="nav-provider-logo">
-          <?php if ($providerLogo): ?>
-            <img src="<?= htmlspecialchars($providerLogo) ?>" alt="<?= htmlspecialchars($providerName) ?>"/>
-          <?php else: ?>
-            <?= mb_strtoupper(mb_substr($providerName, 0, 1)) ?>
-          <?php endif; ?>
-        </div>
-        <div class="nav-provider-text">
-          <span class="nav-provider-name"><?= htmlspecialchars($providerName) ?></span>
-          <span class="nav-provider-email"><?= htmlspecialchars($providerEmail) ?></span>
-        </div>
-      </div>
+  <div class="nav-right">
+  <div class="nav-search-wrap">
+    <svg width="16" height="16" fill="none" stroke="#fff" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+    <input type="text" placeholder="Search......"/>
+  </div>
+
+  <div class="nav-provider-info">
+    <div class="nav-provider-logo">
+      <?php if ($providerLogo): ?>
+        <img src="<?= htmlspecialchars($providerLogo) ?>" alt="<?= htmlspecialchars($providerName) ?>"/>
+      <?php else: ?>
+        <?= mb_strtoupper(mb_substr($providerName, 0, 1)) ?>
+      <?php endif; ?>
     </div>
+    <div class="nav-provider-text">
+      <span class="nav-provider-name"><?= htmlspecialchars($providerName) ?></span>
+      <span class="nav-provider-email"><?= htmlspecialchars($providerEmail) ?></span>
+    </div>
+  </div>
+
+  <button id="hamburger" class="hamburger" onclick="toggleMobileMenu()" aria-label="Open menu">
+    <span></span>
+    <span></span>
+    <span></span>
+  </button>
+</div>
   </nav>
+  <div class="mobile-menu" id="mobileMenu">
+  <div class="mobile-search">
+    <svg width="18" height="18" fill="none" stroke="#fff" stroke-width="2" viewBox="0 0 24 24">
+      <circle cx="11" cy="11" r="7"></circle>
+      <path d="m21 21-4.3-4.3"></path>
+    </svg>
+    <input type="text" placeholder="Search..." />
+  </div>
+
+  <a href="provider-dashboard.php" onclick="closeMobileMenu()">Dashboard</a>
+  <a href="provider-items.php" onclick="closeMobileMenu()">Items</a>
+  <a href="provider-orders.php" onclick="closeMobileMenu()">Orders</a>
+  <a href="provider-profile.php" onclick="closeMobileMenu()">Profile</a>
+  <a href="provider-dashboard.php?logout=1" onclick="closeMobileMenu()">Log out</a>
+</div>
 
   <div class="page-body">
     <aside class="sidebar">
@@ -682,13 +600,13 @@ height: 100%;
       <nav class="sidebar-nav">
         <a href="provider-dashboard.php" class="sidebar-link ">
           <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
-          DashBoard
+          Dashboard
         </a>
-        <a href="provider-items.php" class="sidebar-link active">
+        <a href="provider-items.php" class="sidebar-link">
           <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M20 7H4a2 2 0 00-2 2v10a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2z"/><path d="M16 3H8a2 2 0 00-2 2v2h12V5a2 2 0 00-2-2z"/></svg>
           Items
         </a>
-        <a href="provider-orders.php" class="sidebar-link">
+        <a href="provider-orders.php" class="sidebar-link active">
           <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/></svg>
           Orders
         </a>
@@ -697,7 +615,7 @@ height: 100%;
           Profile
         </a>
       </nav>
-      <button class="sidebar-logout" onclick="window.location.href='provider-dashboard.php?logout=1'">Logout</button>
+      <button class="sidebar-logout" onclick="window.location.href='provider-dashboard.php?logout=1'">Log out</button>
       <div class="sidebar-footer">
         <div class="sidebar-footer-social">
           <a href="#" class="sidebar-social-icon">in</a>
@@ -712,374 +630,171 @@ height: 100%;
         </div>
       </div>
     </aside>
-     <main class="main">
-   <form method="POST" action="provider-item-details.php?id=<?= htmlspecialchars((string)$item['_id']) ?>" id="itemEditForm" enctype="multipart/form-data">
-    <div class="card-wrapper">
+    <main class="main-content">
+<div class="order-details-wrapper">
 
-<div class="item-card">
-<div class="item-info">
+<h1 class="order-title">
+    Order number: <?= htmlspecialchars($order['orderNumber'] ?? '') ?>
+</h1>
 
-<h2>Item</h2>
+<div class="order-details-card">
 
-<?php if ($editMode): ?>
+    <div class="order-details-image-wrap">
+        <?php if (!empty($orderItem['photoUrl'])): ?>
+            <img class="order-details-img"
+                 src="<?= htmlspecialchars($orderItem['photoUrl']) ?>"
+                 alt="<?= htmlspecialchars($orderItem['itemName'] ?? 'Item') ?>">
+        <?php else: ?>
+            <div class="order-details-placeholder">No image</div>
+        <?php endif; ?>
+    </div>
 
-<p>
-<strong>Name:</strong><br>
-<input type="text" name="itemName" class="edit-input" value="<?= htmlspecialchars($_POST['itemName'] ?? $itemName) ?>">
-<?php if (isset($errors['itemName'])): ?><span class="field-error show"><?= htmlspecialchars($errors['itemName']) ?></span><?php endif; ?>
-</p>
+    <div class="order-details-info">
+        <p><strong>Item:</strong> <?= htmlspecialchars($orderItem['itemName'] ?? 'Item') ?></p>
 
-<p>
-<strong>Description:</strong><br>
-<textarea name="description" class="edit-textarea"><?= htmlspecialchars($_POST['description'] ?? $itemDescription) ?></textarea>
-<?php if (isset($errors['description'])): ?><span class="field-error show"><?= htmlspecialchars($errors['description']) ?></span><?php endif; ?>
-</p>
+        <p>
+            <strong>Price:</strong>
+            <?php if ($isDonation): ?>
+                Donation
+            <?php else: ?>
+                <?= number_format((float)($orderItem['price'] ?? 0), 2) ?>
+                <img src="../../images/SAR.png" class="currency-icon" alt="price">
+            <?php endif; ?>
+        </p>
 
-<p>
-<strong>Type:</strong><br>
-<select name="listingType" class="edit-input">
-<option value="donate" <?= (($_POST['listingType'] ?? $item['listingType']) === 'donate') ? 'selected' : '' ?>>Donate</option>
-<option value="sell" <?= (($_POST['listingType'] ?? $item['listingType']) === 'sell') ? 'selected' : '' ?>>Sell</option>
-</select>
-<?php if (isset($errors['listingType'])): ?><span class="field-error show"><?= htmlspecialchars($errors['listingType']) ?></span><?php endif; ?>
-</p>
+        <p><strong>Quantity:</strong> <?= (int)($orderItem['quantity'] ?? 1) ?></p>
+        <p><strong>Status:</strong> <?= $statusText ?></p>
+        <p><strong>Pickup location:</strong> <?= htmlspecialchars($orderItem['pickupLocation'] ?? 'No location') ?></p>
+        <p><strong>Order date:</strong> <?= htmlspecialchars($displayDate) ?></p>
+    </div>
 
-<p>
-<strong>Price:</strong><br>
-<input type="number" step="0.01" name="price" class="edit-input" value="<?= htmlspecialchars((string)($_POST['price'] ?? $item['price'] ?? 0)) ?>">
-<?php if (isset($errors['price'])): ?><span class="field-error show"><?= htmlspecialchars($errors['price']) ?></span><?php endif; ?>
-</p>
-
-<p>
-<strong>Category:</strong><br>
-<select name="categoryId" class="edit-input">
-<option value="">Select category</option>
-<?php foreach ($categoryModel->getAll() as $cat): ?>
-<option value="<?= htmlspecialchars((string)$cat['_id']) ?>"
-<?= ((string)($_POST['categoryId'] ?? (string)$item['categoryId']) === (string)$cat['_id']) ? 'selected' : '' ?>>
-<?= htmlspecialchars($cat['name']) ?>
-</option>
-<?php endforeach; ?>
-</select>
-<?php if (isset($errors['categoryId'])): ?><span class="field-error show"><?= htmlspecialchars($errors['categoryId']) ?></span><?php endif; ?>
-</p>
-
-<p>
-<strong>Quantity:</strong><br>
-<input type="number" name="quantity" min="1" step="1" class="edit-input"
-value="<?= htmlspecialchars((string)($_POST['quantity'] ?? $quantity)) ?>">
-<?php if (isset($errors['quantity'])): ?>
-    <span class="field-error show"><?= htmlspecialchars($errors['quantity']) ?></span>
-<?php endif; ?>
-</p>
-
-<p>
-<strong>Expiry date:</strong><br>
-<input
-type="date"
-name="expiryDate"
-id="expiryDate"
-class="edit-input <?= isset($errors['expiryDate']) ? 'error' : '' ?>"
-min="<?= $today ?>"
-value="<?= htmlspecialchars($_POST['expiryDate'] ?? $expiryDate) ?>"
->
-<?php if (isset($errors['expiryDate'])): ?>
-<span class="field-error show"><?= htmlspecialchars($errors['expiryDate']) ?></span>
-<?php endif; ?>
-</p>
-
-
-<p>
-<strong>Pickup date:</strong><br>
-<input
-type="date"
-name="pickupDate"
-id="pickupDate"
-class="edit-input <?= isset($errors['pickupDate']) ? 'error' : '' ?>"
-min="<?= $today ?>"
-value="<?= htmlspecialchars($_POST['pickupDate'] ?? $pickupDate) ?>"
->
-<?php if (isset($errors['pickupDate'])): ?>
-<span class="field-error show"><?= htmlspecialchars($errors['pickupDate']) ?></span>
-<?php endif; ?>
-</p>
-
-
-<p>
-<strong>Pickup location:</strong><br>
-<select name="pickupLocationId" class="edit-input">
-<option value="">Select pickup location</option>
-
-<?php foreach ($locationModel->getByProvider($providerId) as $loc): ?>
-
-<option 
-value="<?= (string)$loc['_id'] ?>"
-data-lat="<?= $loc['lat'] ?? ($loc['coordinates']['lat'] ?? '') ?>"
-data-lng="<?= $loc['lng'] ?? ($loc['coordinates']['lng'] ?? '') ?>"
-<?= ((string)($item['pickupLocationId'] ?? '') == (string)$loc['_id']) ? 'selected' : '' ?>
->
-<?= htmlspecialchars(trim(implode(' - ', array_filter([
-    $loc['locationName'] ?? ($loc['label'] ?? ''),
-    $loc['street'] ?? '',
-    $loc['city'] ?? ''
-])))) ?>
-</option>
-<?php endforeach; ?>
-</select>
-<?php if (isset($errors['pickupLocationId'])): ?><span class="field-error show"><?= htmlspecialchars($errors['pickupLocationId']) ?></span><?php endif; ?>
-</p>
-
-<p>
-<strong>Photo:</strong><br>
-<input type="file" name="itemPhoto" class="edit-input" accept="image/*">
-</p>
-
-<div class="pickup-times-block">
-<p><strong>Pickup times:</strong></p>
-
-<div id="pickupTimesContainer" class="pickup-times-list">
-<?php
-$editablePickupTimes = $_POST['pickupTimes'] ?? $pickupTimes;
-if (!empty($editablePickupTimes)):
-foreach ($editablePickupTimes as $time):
-?>
-<span class="time-chip"><?= htmlspecialchars($time) ?></span>
-<input type="hidden" name="pickupTimes[]" value="<?= htmlspecialchars($time) ?>">
-<?php
-endforeach;
-endif;
-?>
-</div>
-
-<div class="time-picker-row">
-<select id="editHour" class="small-time-select">
-<option value="">Hour</option>
-<?php for ($h = 1; $h <= 12; $h++): ?>
-<option value="<?= $h ?>"><?= $h ?></option>
-<?php endfor; ?>
-</select>
-
-<select id="editMinute" class="small-time-select">
-<option value="">Min</option>
-<option value="00">00</option>
-<option value="15">15</option>
-<option value="30">30</option>
-<option value="45">45</option>
-</select>
-
-<select id="editAmPm" class="small-time-select">
-<option value="AM">AM</option>
-<option value="PM">PM</option>
-</select>
-
-<button type="button" class="add-time-btn" onclick="addPickupTimeEdit()">+ Add</button>
-</div>
-
-<?php if (isset($errors['pickupTimes'])): ?>
-<span class="field-error show"><?= htmlspecialchars($errors['pickupTimes']) ?></span>
-<?php endif; ?>
-</div>
-
-<?php else: ?>
-
-<p><strong>Name:</strong> <?= htmlspecialchars($itemName) ?></p>
-<p><strong>Description:</strong> <?= htmlspecialchars($itemDescription) ?></p>
-<p><strong>Type:</strong> <?= htmlspecialchars($itemType) ?></p>
-<p><strong>Price:</strong> <?= htmlspecialchars($itemPrice) ?></p>
-<p><strong>Category:</strong> <?= htmlspecialchars($categoryName) ?></p>
-<p><strong>Quantity:</strong> <?= htmlspecialchars((string)$quantity) ?></p>
-<p><strong>Expiry date:</strong> <?= htmlspecialchars($expiryDate ? date('d/m/Y', strtotime($expiryDate)) : '') ?></p>
-<p><strong>Pickup date:</strong> <?= htmlspecialchars($pickupDate ? date('d/m/Y', strtotime($pickupDate)) : '') ?></p>
-<p><strong>Branch:</strong> <?= htmlspecialchars($locationName) ?></p>
-<p><strong>Address:</strong> <?= htmlspecialchars(trim(implode(', ', array_filter([
-    $locationAddress,
-    $locationCity,
-    $locationZip
-])))) ?></p>
-
-<div class="pickup-times-block">
-<p><strong>Pickup times:</strong></p>
-
-<?php if (!empty($pickupTimes)): ?>
-<div class="pickup-times-list">
-<?php foreach ($pickupTimes as $time): ?>
-<?php
-$displayTime = '';
-if (is_string($time)) {
-$decoded = json_decode($time, true);
-if (is_array($decoded) && isset($decoded['date'], $decoded['time'])) {
-$displayTime = $decoded['date'] . ' - ' . $decoded['time'];
-} else {
-$displayTime = $time;
-}
-} elseif (is_array($time) && isset($time['date'], $time['time'])) {
-$displayTime = $time['date'] . ' - ' . $time['time'];
-}
-?>
-<span class="time-chip"><?= htmlspecialchars($displayTime) ?></span>
-<?php endforeach; ?>
-</div>
-<?php else: ?>
-<p>No pickup times added.</p>
-<?php endif; ?>
-</div>
-
-<?php endif; ?>
-
-
-<?php if ($editMode): ?>
-<div class="item-action-row">
-
-<a href="provider-item-details.php?id=<?= htmlspecialchars((string)$item['_id']) ?>" class="btn-cancel">
-Cancel
-</a>
-
-<button type="submit" form="itemEditForm" class="btn-save">
-<svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-<path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/>
-<polyline points="17 21 17 13 7 13 7 21"/>
-<polyline points="7 3 7 8 15 8"/>
-</svg>
-Save
-</button>
-
-
-<a href="provider-item-details.php?id=<?= htmlspecialchars((string)$item['_id']) ?>&delete=1"
-class="btn-delete"
-onclick="return confirm('Are you sure you want to delete this item?');">
-Delete
-</a>
+    <?php if ($itemStatus !== 'completed'): ?>
+        <form method="POST" class="complete-form">
+            <button type="submit" name="mark_completed" class="complete-btn">
+                Mark As Completed
+            </button>
+        </form>
+    <?php endif; ?>
 
 </div>
-<?php else: ?>
-<div class="item-action-row">
-<a class="profile-edit-btn" href="provider-item-details.php?id=<?= htmlspecialchars((string)$item['_id']) ?>&edit=1">
-<svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-<path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
-<path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
-</svg>
-Edit
-</a>
-
 </div>
-<?php endif; ?>
-
-
-</div>
-
-<div class="location-side">
-
-<h3 class="location-title">Pick up location</h3>
-
-<div class="location-card">
-
-<?php if ($locationLat !== null && $locationLng !== null): ?>
-<div class="location-map">
-<div id="itemPickupMap"></div>
-</div>
-<?php else: ?>
-<div class="location-placeholder">No map available</div>
-<?php endif; ?>
-
-<p><?= htmlspecialchars($locationName) ?></p>
-<p><?= htmlspecialchars(trim(implode(', ', array_filter([$locationAddress, $locationCity, $locationZip])))) ?></p>
-<?php if ($locationLat === null || $locationLng === null): ?>
-<p style="color:#7a8fa8;font-size:13px;">Location not available for this branch.</p>
-<?php endif; ?>
-
-</div>
-
-</div>
-
-</div>
-
+</main>
 </div>
 <script>
-function addPickupTimeEdit() {
-const hour = document.getElementById('editHour').value;
-const minute = document.getElementById('editMinute').value;
-const ampm = document.getElementById('editAmPm').value;
-
-if (!hour || !minute) {
-alert('Please choose hour and minute.');
-return;
+function toggleMobileMenu() {
+  const menu = document.getElementById('mobileMenu');
+  const btn = document.getElementById('hamburger');
+  menu.classList.toggle('open');
+  btn.classList.toggle('open');
+  document.body.style.overflow = menu.classList.contains('open') ? 'hidden' : '';
 }
 
-const value = `${hour}:${minute} ${ampm}`;
-const container = document.getElementById('pickupTimesContainer');
-
-const chip = document.createElement('span');
-chip.className = 'time-chip';
-chip.textContent = value;
-
-const hidden = document.createElement('input');
-hidden.type = 'hidden';
-hidden.name = 'pickupTimes[]';
-hidden.value = value;
-
-container.appendChild(chip);
-container.appendChild(hidden);
-
-document.getElementById('editHour').value = '';
-document.getElementById('editMinute').value = '';
-document.getElementById('editAmPm').value = 'AM';
+function closeMobileMenu() {
+  document.getElementById('mobileMenu').classList.remove('open');
+  document.getElementById('hamburger').classList.remove('open');
+  document.body.style.overflow = '';
 }
 </script>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
-<?php if ($locationLat !== null && $locationLng !== null): ?>
 <script>
-const itemPickupMap = L.map('itemPickupMap', {
-    zoomControl: true,
-    dragging: true,
-    scrollWheelZoom: false
-}).setView([<?= (float)$locationLat ?>, <?= (float)$locationLng ?>], 14);
+const profileSearchResults = [
+  {
+    title: 'Business Name',
+    subtitle: 'Go to business name field',
+    action: () => document.querySelector('[name="businessName"]')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  },
+  {
+    title: 'Business Description',
+    subtitle: 'Go to business description field',
+    action: () => document.querySelector('[name="businessDescription"]')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  },
+  {
+    title: 'Category',
+    subtitle: 'Go to category field',
+    action: () => document.querySelector('[name="category"]')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  },
+  {
+    title: 'Email',
+    subtitle: 'Go to email field',
+    action: () => document.querySelector('[name="email"]')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  },
+  {
+    title: 'Phone Number',
+    subtitle: 'Go to phone number field',
+    action: () => document.querySelector('[name="phoneNumber"]')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  },
+  {
+    title: 'City',
+    subtitle: 'Go to city field',
+    action: () => document.querySelector('[name="city"]')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }
+];
 
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '&copy; OpenStreetMap contributors'
-}).addTo(itemPickupMap);
+function setupProfileSearch(inputId, dropdownId) {
+  const input = document.getElementById(inputId);
+  const dropdown = document.getElementById(dropdownId);
 
-window.marker = L.marker([<?= (float)$locationLat ?>, <?= (float)$locationLng ?>]).addTo(itemPickupMap);
+  if (!input || !dropdown) return;
 
-setTimeout(() => {
-    itemPickupMap.invalidateSize();
-}, 200);
-</script>
-<?php endif; ?>
+  input.addEventListener('input', function () {
+    const value = this.value.trim().toLowerCase();
 
-<script>
-document.querySelector('[name="listingType"]')?.addEventListener('change', function () {
-    const priceInput = document.querySelector('[name="price"]');
-    if (this.value === 'donate') {
-        priceInput.value = 0;
-        priceInput.disabled = true;
-    } else {
-        priceInput.disabled = false;
+    if (!value) {
+      dropdown.classList.remove('visible');
+      dropdown.innerHTML = '';
+      return;
     }
-});
 
-document.getElementById('pickupLocationId')?.addEventListener('change', function () {
-    const selectedOption = this.options[this.selectedIndex];
+    const results = profileSearchResults.filter(item =>
+      item.title.toLowerCase().includes(value)
+    );
 
-    const lat = selectedOption.getAttribute('data-lat');
-    const lng = selectedOption.getAttribute('data-lng');
-
-    if (!lat || !lng) return;
-
-    if (typeof itemPickupMap !== 'undefined') {
-        itemPickupMap.setView([parseFloat(lat), parseFloat(lng)], 14);
-
-        if (window.marker) {
-            itemPickupMap.removeLayer(window.marker);
-        }
-
-        window.marker = L.marker([lat, lng]).addTo(itemPickupMap);
-    } else {
-        location.reload();
+    if (!results.length) {
+      dropdown.innerHTML = `
+        <div style="padding:16px;color:#8a9ab5;font-size:13px;text-align:center;">
+          No matching result
+        </div>
+      `;
+      dropdown.classList.add('visible');
+      return;
     }
-});
-</script>
 
+    dropdown.innerHTML = results.map((item, index) => `
+      <div class="sd-row" data-index="${index}">
+        <div class="sd-icon">
+          <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <circle cx="11" cy="11" r="8"></circle>
+            <path d="m21 21-4.3-4.3"></path>
+          </svg>
+        </div>
+        <div class="sd-info">
+          <div class="sd-name">${item.title}</div>
+          <div class="sd-sub">${item.subtitle}</div>
+        </div>
+      </div>
+    `).join('');
+
+    dropdown.classList.add('visible');
+
+    dropdown.querySelectorAll('.sd-row').forEach((row, i) => {
+      row.addEventListener('click', () => {
+        results[i].action();
+        dropdown.classList.remove('visible');
+        input.value = '';
+        closeMobileMenu?.();
+      });
+    });
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!dropdown.contains(e.target) && e.target !== input) {
+      dropdown.classList.remove('visible');
+    }
+  });
+}
+
+setupProfileSearch('searchInput', 'searchDropdown');
+setupProfileSearch('mobileSearchInput', 'mobileSearchDropdown');
+</script>
 </body>
 </html>
   
