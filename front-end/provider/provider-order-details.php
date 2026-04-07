@@ -137,6 +137,7 @@ $displayDate = $order['placedAt']->toDateTime()->format('j F Y');
 <html lang="en">
 <head>
   <title>RePlate – Order #<?= htmlspecialchars($order['orderNumber'] ?? '') ?></title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: 'Playfair Display', serif; background: #f4f7fc; min-height: 100vh; display: flex; flex-direction: column; }
@@ -303,6 +304,245 @@ margin-left: 4px;
 .page-header h1 span {
   -webkit-text-fill-color: transparent;
 }
+/* ── MOBILE HEADER / HAMBURGER ── */
+.hamburger {
+  display: none;
+  flex-direction: column;
+  gap: 5px;
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: 6px;
+}
+
+.hamburger span {
+  display: block;
+  width: 24px;
+  height: 2.5px;
+  background: #fff;
+  border-radius: 2px;
+  transition: all 0.3s;
+}
+
+.hamburger.open span:nth-child(1) {
+  transform: translateY(7.5px) rotate(45deg);
+}
+
+.hamburger.open span:nth-child(2) {
+  opacity: 0;
+}
+
+.hamburger.open span:nth-child(3) {
+  transform: translateY(-7.5px) rotate(-45deg);
+}
+
+.mobile-menu {
+  display: none;
+  position: fixed;
+  inset: 0;
+  top: 72px;
+  background: linear-gradient(180deg, #1a3a6b 0%, #2255a4 100%);
+  z-index: 99;
+  flex-direction: column;
+  padding: 24px 20px;
+}
+
+.mobile-menu.open {
+  display: flex;
+}
+
+.mobile-menu a {
+  color: rgba(255,255,255,0.9);
+  font-size: 22px;
+  font-weight: 700;
+  padding: 18px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.12);
+  text-decoration: none;
+}
+
+.mobile-search {
+  margin-top: 22px;
+  position: relative;
+}
+
+.mobile-search svg {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.mobile-search input {
+  width: 100%;
+  background: rgba(255,255,255,0.15);
+  border: 1.5px solid rgba(255,255,255,0.4);
+  border-radius: 50px;
+  padding: 12px 16px 12px 40px;
+  color: #fff;
+  outline: none;
+  font-family: 'Playfair Display', serif;
+}
+
+.mobile-search input::placeholder {
+  color: rgba(255,255,255,0.6);
+}
+.search-dropdown {
+  display: none;
+  position: absolute;
+  top: calc(100% + 10px);
+  left: 0;
+  width: 360px;
+  max-width: calc(100vw - 40px);
+  background: #fff;
+  border-radius: 18px;
+  border: 1.5px solid #e0eaf5;
+  box-shadow: 0 12px 40px rgba(26,58,107,0.18);
+  z-index: 9999;
+  overflow: hidden;
+}
+
+.search-dropdown.visible {
+  display: block;
+}
+
+.sd-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  text-decoration: none;
+  color: inherit;
+  transition: background 0.15s;
+}
+
+.sd-row:hover {
+  background: #f4f8ff;
+}
+
+.sd-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: #edf3fb;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #1a3a6b;
+  flex-shrink: 0;
+}
+
+.sd-info {
+  min-width: 0;
+}
+
+.sd-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: #1a3a6b;
+}
+
+.sd-sub {
+  font-size: 12px;
+  color: #7a8fa8;
+  margin-top: 2px;
+}
+
+.mobile-search {
+  position: relative;
+}
+
+.mobile-search .search-dropdown {
+  top: calc(100% + 12px);
+  left: 0;
+  width: 100%;
+}
+
+@media (max-width: 768px) {
+  .hamburger {
+    display: flex;
+  }
+
+  .sidebar {
+    display: none;
+  }
+
+  .page-body {
+    display: block;
+  }
+
+  .nav-search-wrap {
+    display: none;
+  }
+
+  .nav-provider-text {
+    display: none;
+  }
+
+  nav.navbar {
+    padding: 0 16px;
+  }
+
+  .nav-logo {
+    height: 70px;
+  }
+
+  .main-content {
+    width: 100%;
+    padding: 20px 16px;
+    margin: 0;
+    align-items: stretch;
+  }
+
+  .orders-page-wrap {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .tabs-row {
+    display: flex;
+    gap: 8px;
+    width: 100%;
+  }
+
+  .tab-btn {
+    flex: 1;
+    min-width: 0;
+    width: auto;
+    padding: 10px 8px;
+    font-size: 14px;
+  }
+
+  .orders-list {
+    width: 100%;
+    max-width: 100%;
+    padding: 16px;
+    gap: 16px;
+  }
+
+  .order-top,
+  .order-left-block,
+  .order-bottom {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .order-item-img,
+  .order-placeholder {
+    width: 82px;
+    height: 82px;
+  }
+
+  .order-price,
+  .donation-text {
+    margin-left: 0;
+  }
+
+  .view-order-btn {
+    margin-right: 0;
+  }
+}
     </style>
 </head>
 <body>
@@ -310,26 +550,48 @@ margin-left: 4px;
     <div class="nav-left">
       <img class="nav-logo" src="../../images/Replate-white.png" alt="RePlate"/>
     </div>
-    <div class="nav-right">
-      <div class="nav-search-wrap">
-        <svg width="16" height="16" fill="none" stroke="#fff" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
-        <input type="text" placeholder="Search......"/>
-      </div>
-      <div class="nav-provider-info">
-        <div class="nav-provider-logo">
-          <?php if ($providerLogo): ?>
-            <img src="<?= htmlspecialchars($providerLogo) ?>" alt="<?= htmlspecialchars($providerName) ?>"/>
-          <?php else: ?>
-            <?= mb_strtoupper(mb_substr($providerName, 0, 1)) ?>
-          <?php endif; ?>
-        </div>
-        <div class="nav-provider-text">
-          <span class="nav-provider-name"><?= htmlspecialchars($providerName) ?></span>
-          <span class="nav-provider-email"><?= htmlspecialchars($providerEmail) ?></span>
-        </div>
-      </div>
+  <div class="nav-right">
+  <div class="nav-search-wrap">
+    <svg width="16" height="16" fill="none" stroke="#fff" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+    <input type="text" placeholder="Search......"/>
+  </div>
+
+  <div class="nav-provider-info">
+    <div class="nav-provider-logo">
+      <?php if ($providerLogo): ?>
+        <img src="<?= htmlspecialchars($providerLogo) ?>" alt="<?= htmlspecialchars($providerName) ?>"/>
+      <?php else: ?>
+        <?= mb_strtoupper(mb_substr($providerName, 0, 1)) ?>
+      <?php endif; ?>
     </div>
+    <div class="nav-provider-text">
+      <span class="nav-provider-name"><?= htmlspecialchars($providerName) ?></span>
+      <span class="nav-provider-email"><?= htmlspecialchars($providerEmail) ?></span>
+    </div>
+  </div>
+
+  <button id="hamburger" class="hamburger" onclick="toggleMobileMenu()" aria-label="Open menu">
+    <span></span>
+    <span></span>
+    <span></span>
+  </button>
+</div>
   </nav>
+  <div class="mobile-menu" id="mobileMenu">
+  <div class="mobile-search">
+    <svg width="18" height="18" fill="none" stroke="#fff" stroke-width="2" viewBox="0 0 24 24">
+      <circle cx="11" cy="11" r="7"></circle>
+      <path d="m21 21-4.3-4.3"></path>
+    </svg>
+    <input type="text" placeholder="Search..." />
+  </div>
+
+  <a href="provider-dashboard.php" onclick="closeMobileMenu()">Dashboard</a>
+  <a href="provider-items.php" onclick="closeMobileMenu()">Items</a>
+  <a href="provider-orders.php" onclick="closeMobileMenu()">Orders</a>
+  <a href="provider-profile.php" onclick="closeMobileMenu()">Profile</a>
+  <a href="provider-dashboard.php?logout=1" onclick="closeMobileMenu()">Log out</a>
+</div>
 
   <div class="page-body">
     <aside class="sidebar">
@@ -418,6 +680,121 @@ margin-left: 4px;
 </div>
 </main>
 </div>
+<script>
+function toggleMobileMenu() {
+  const menu = document.getElementById('mobileMenu');
+  const btn = document.getElementById('hamburger');
+  menu.classList.toggle('open');
+  btn.classList.toggle('open');
+  document.body.style.overflow = menu.classList.contains('open') ? 'hidden' : '';
+}
+
+function closeMobileMenu() {
+  document.getElementById('mobileMenu').classList.remove('open');
+  document.getElementById('hamburger').classList.remove('open');
+  document.body.style.overflow = '';
+}
+</script>
+<script>
+const profileSearchResults = [
+  {
+    title: 'Business Name',
+    subtitle: 'Go to business name field',
+    action: () => document.querySelector('[name="businessName"]')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  },
+  {
+    title: 'Business Description',
+    subtitle: 'Go to business description field',
+    action: () => document.querySelector('[name="businessDescription"]')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  },
+  {
+    title: 'Category',
+    subtitle: 'Go to category field',
+    action: () => document.querySelector('[name="category"]')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  },
+  {
+    title: 'Email',
+    subtitle: 'Go to email field',
+    action: () => document.querySelector('[name="email"]')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  },
+  {
+    title: 'Phone Number',
+    subtitle: 'Go to phone number field',
+    action: () => document.querySelector('[name="phoneNumber"]')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  },
+  {
+    title: 'City',
+    subtitle: 'Go to city field',
+    action: () => document.querySelector('[name="city"]')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }
+];
+
+function setupProfileSearch(inputId, dropdownId) {
+  const input = document.getElementById(inputId);
+  const dropdown = document.getElementById(dropdownId);
+
+  if (!input || !dropdown) return;
+
+  input.addEventListener('input', function () {
+    const value = this.value.trim().toLowerCase();
+
+    if (!value) {
+      dropdown.classList.remove('visible');
+      dropdown.innerHTML = '';
+      return;
+    }
+
+    const results = profileSearchResults.filter(item =>
+      item.title.toLowerCase().includes(value)
+    );
+
+    if (!results.length) {
+      dropdown.innerHTML = `
+        <div style="padding:16px;color:#8a9ab5;font-size:13px;text-align:center;">
+          No matching result
+        </div>
+      `;
+      dropdown.classList.add('visible');
+      return;
+    }
+
+    dropdown.innerHTML = results.map((item, index) => `
+      <div class="sd-row" data-index="${index}">
+        <div class="sd-icon">
+          <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <circle cx="11" cy="11" r="8"></circle>
+            <path d="m21 21-4.3-4.3"></path>
+          </svg>
+        </div>
+        <div class="sd-info">
+          <div class="sd-name">${item.title}</div>
+          <div class="sd-sub">${item.subtitle}</div>
+        </div>
+      </div>
+    `).join('');
+
+    dropdown.classList.add('visible');
+
+    dropdown.querySelectorAll('.sd-row').forEach((row, i) => {
+      row.addEventListener('click', () => {
+        results[i].action();
+        dropdown.classList.remove('visible');
+        input.value = '';
+        closeMobileMenu?.();
+      });
+    });
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!dropdown.contains(e.target) && e.target !== input) {
+      dropdown.classList.remove('visible');
+    }
+  });
+}
+
+setupProfileSearch('searchInput', 'searchDropdown');
+setupProfileSearch('mobileSearchInput', 'mobileSearchDropdown');
+</script>
 </body>
 </html>
   
