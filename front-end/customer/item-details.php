@@ -106,11 +106,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $customerId && $item) {
     $action = $_POST['action'] ?? '';
     if ($action === 'add_to_cart') {
         (new Cart())->addItem($customerId, [
-            'itemId'     => $itemId,
-            'providerId' => (string) $item['providerId'],
-            'quantity'   => (int) ($_POST['quantity'] ?? 1),
-            'itemName'   => $item['itemName'],
-            'price'      => $item['price'],
+            'itemId'             => $itemId,
+            'providerId'         => (string) $item['providerId'],
+            'quantity'           => (int) ($_POST['quantity'] ?? 1),
+            'itemName'           => $item['itemName'],
+            'price'              => $item['price'],
+            'selectedPickupTime' => trim($_POST['pickupTime'] ?? ''),
         ]);
         header("Location: item-details.php?itemId=$itemId&added=1");
         exit;
@@ -402,11 +403,42 @@ function fmtPickupTime($value): string {
     .footer-email { display: flex; align-items: center; gap: 6px; color: rgba(255,255,255,0.9); font-size: 14px; font-family: 'Playfair Display', serif; }
     .footer-bottom { display: flex; align-items: center; gap: 8px; color: rgba(255,255,255,0.7); font-size: 13px; font-family: 'Playfair Display', serif; }
 
-    @media(max-width:700px) {
-      nav { padding: 0 16px; }
+    /* ── HAMBURGER ── */
+    .hamburger{display:none;flex-direction:column;gap:5px;cursor:pointer;background:none;border:none;padding:6px}
+    .hamburger span{display:block;width:24px;height:2.5px;background:#fff;border-radius:2px;transition:all .3s}
+    .hamburger.open span:nth-child(1){transform:translateY(7.5px) rotate(45deg)}
+    .hamburger.open span:nth-child(2){opacity:0}
+    .hamburger.open span:nth-child(3){transform:translateY(-7.5px) rotate(-45deg)}
+    .mobile-menu{display:none;position:fixed;inset:0;top:72px;background:linear-gradient(180deg,#1a3a6b 0%,#2255a4 100%);z-index:9999;flex-direction:column;padding:32px 28px;gap:0;overflow-y:auto}
+    .mobile-menu.open{display:flex}
+    .mobile-menu a{color:rgba(255,255,255,0.85);font-size:22px;font-weight:700;font-family:'Playfair Display',serif;padding:18px 0;border-bottom:1px solid rgba(255,255,255,0.12);text-decoration:none}
+    .mobile-menu a:hover{color:#fff}
+    .mobile-search{margin-bottom:16px;position:relative}
+    .mobile-search svg{position:absolute;left:14px;top:50%;transform:translateY(-50%);opacity:.6;pointer-events:none}
+    .mobile-search input{width:100%;background:rgba(255,255,255,0.15);border:1.5px solid rgba(255,255,255,0.4);border-radius:50px;padding:12px 16px 12px 40px;color:#fff;font-size:15px;outline:none;font-family:'Playfair Display',serif}
+    .mobile-search input::placeholder{color:rgba(255,255,255,0.6)}
+    .mobile-search-dropdown{display:none;background:#fff;border-radius:16px;margin:0 0 8px;overflow:hidden;max-height:55vh;overflow-y:auto;box-shadow:0 4px 24px rgba(26,58,107,0.18)}
+    .mobile-search-dropdown.open{display:block}
+    .mobile-search-dropdown a.search-item-row{color:#1a3a6b!important;font-size:14px!important;font-weight:400!important;padding:10px 16px!important;border-bottom:1px solid #f5f8fc!important;display:flex!important;align-items:center!important;gap:12px!important;background:#fff!important}
+    .mobile-search-dropdown a.search-item-row:hover{background:#f0f6ff!important}
+    .mobile-search-dropdown .search-item-name{font-size:14px!important;font-weight:700!important;color:#1a3a6b!important}
+    .mobile-search-dropdown .search-item-sub{font-size:12px!important;color:#7a8fa8!important;font-weight:400!important}
+    .mobile-search-dropdown .search-price{margin-left:auto!important;font-size:13px!important;font-weight:700!important;color:#e07a1a!important;white-space:nowrap!important}
+    .mobile-search-dropdown .search-section-label{background:#fff;padding:10px 16px 6px!important;font-size:11px!important;font-weight:700!important;color:#b0c4d8!important;letter-spacing:.08em!important;text-transform:uppercase!important}
+    .mobile-search-dropdown .search-divider{height:1px;background:#f0f5fc;margin:4px 0}
+    .mobile-search-dropdown .search-provider-logo{width:38px!important;height:38px!important;border-radius:50%!important;background:#e0eaf5!important;flex-shrink:0!important;overflow:hidden!important;display:flex!important;align-items:center!important;justify-content:center!important;font-size:15px!important;font-weight:700!important;color:#2255a4!important}
+    .mobile-search-dropdown .search-provider-logo img{width:100%;height:100%;object-fit:cover}
+    .mobile-search-dropdown .search-thumb{width:38px!important;height:38px!important;border-radius:10px!important;background:#e0eaf5!important;flex-shrink:0!important;display:flex!important;align-items:center!important;justify-content:center!important;font-size:18px!important;overflow:hidden!important}
+    .mobile-search-dropdown .search-thumb img{width:100%;height:100%;object-fit:cover;border-radius:10px}
+
+    @media(max-width:768px) {
+      nav { padding: 0 18px; }
+      .nav-logo { height: 74px; }
+      .nav-center { display: none; }
+      .nav-search-wrap { display: none; }
+      .hamburger { display: flex; }
       .item-hero { padding: 20px 16px 0; }
       .item-title { font-size: 28px; }
-      .nav-center { display: none; }
     }
   </style>
 </head>
@@ -561,8 +593,23 @@ function fmtPickupTime($value): string {
         <button onclick="document.getElementById('authModal').style.display='none'" style="margin-top:18px;background:none;border:none;color:#b0c4d8;font-size:13px;cursor:pointer;font-family:'Playfair Display',serif;">Maybe later</button>
       </div>
     </div>
+
+    <button id="hamburger" class="hamburger" onclick="toggleMobileMenu()" aria-label="Open menu">
+      <span></span><span></span><span></span>
+    </button>
   </div>
 </nav>
+
+<div class="mobile-menu" id="mobileMenu">
+  <div class="mobile-search">
+    <svg width="16" height="16" fill="none" stroke="#fff" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+    <input type="text" id="mobileSearchInput" placeholder="Search products or providers..." autocomplete="off"/>
+  </div>
+  <div id="mobileSearchDropdown" class="mobile-search-dropdown"></div>
+  <a href="../shared/landing.php" onclick="closeMobileMenu()">Home Page</a>
+  <a href="../shared/landing.php#categories" onclick="closeMobileMenu()">Categories</a>
+  <a href="../shared/landing.php#providers" onclick="closeMobileMenu()">Providers</a>
+</div>
 
 <!-- ══════════════════════════════════════
      ITEM DETAIL CONTENT
@@ -694,7 +741,7 @@ function fmtPickupTime($value): string {
                 <img src="../../images/riyal.png" class="riyal-icon">
               </span>
             <?php else: ?>
-              <span class="btn-price">Free</span>
+              <span class="btn-price">Donation</span>
             <?php endif; ?>
           </button>
         </div>
@@ -903,6 +950,64 @@ function fmtPickupTime($value): string {
       '<mark style="background:#fff4e6;color:#e07a1a;border-radius:3px;padding:0 2px;">$1</mark>'
     );
   }
+
+  function toggleMobileMenu(){
+    const menu = document.getElementById('mobileMenu');
+    const btn  = document.getElementById('hamburger');
+    menu.classList.toggle('open');
+    btn.classList.toggle('open');
+    document.body.style.overflow = menu.classList.contains('open') ? 'hidden' : '';
+  }
+  function closeMobileMenu(){
+    document.getElementById('mobileMenu')?.classList.remove('open');
+    document.getElementById('hamburger')?.classList.remove('open');
+    document.body.style.overflow = '';
+  }
+  document.getElementById('mobileSearchInput')?.addEventListener('input', function(){
+    const q = this.value.trim();
+    const dd = document.getElementById('mobileSearchDropdown');
+    if(!dd) return;
+    if(q.length < 2){ dd.classList.remove('open'); dd.innerHTML = ''; return; }
+    dd.innerHTML = '<div style="padding:14px;text-align:center;color:#b0c4d8;font-size:13px;">Searching...</div>';
+    dd.classList.add('open');
+    clearTimeout(window._mobTimer);
+    window._mobTimer = setTimeout(() => {
+      fetch('../../back-end/search.php?q=' + encodeURIComponent(q))
+        .then(r => r.json())
+        .then(data => {
+          const items = data.items || [], providers = data.providers || [];
+          if(!items.length && !providers.length){
+            dd.innerHTML = '<div style="padding:14px;text-align:center;color:#b0c4d8;font-size:13px;">No matches found</div>';
+            dd.classList.add('open'); return;
+          }
+          let html = '';
+          if(providers.length){
+            html += '<div class="search-section-label">Providers</div>';
+            providers.forEach(p => {
+              const logo = p.businessLogo
+                ? `<div class="search-provider-logo"><img src="${p.businessLogo}"/></div>`
+                : `<div class="search-provider-logo">${p.businessName.charAt(0)}</div>`;
+              html += `<a class="search-item-row" href="../customer/providers-page.php?providerId=${p.id}" onclick="closeMobileMenu()">${logo}<div><p class="search-item-name">${p.businessName}</p><p class="search-item-sub">${p.category||''}</p></div></a>`;
+            });
+          }
+          if(items.length){
+            if(providers.length) html += '<div class="search-divider"></div>';
+            html += '<div class="search-section-label">Products</div>';
+            items.forEach(item => {
+              const t = item.photoUrl
+                ? `<div class="search-thumb"><img src="${item.photoUrl}"/></div>`
+                : '<div class="search-thumb">&#127837;</div>';
+              html += `<a class="search-item-row" href="../customer/item-details.php?itemId=${item.id}" onclick="closeMobileMenu()">${t}<div><p class="search-item-name">${item.name}</p></div><span class="search-price">${item.price||''}</span></a>`;
+            });
+          }
+          dd.innerHTML = html; dd.classList.add('open');
+        })
+        .catch(() => {
+          dd.innerHTML = '<div style="padding:14px;text-align:center;color:#b0c4d8;font-size:13px;">Search unavailable</div>';
+          dd.classList.add('open');
+        });
+    }, 220);
+  });
 </script>
 </body>
 </html>

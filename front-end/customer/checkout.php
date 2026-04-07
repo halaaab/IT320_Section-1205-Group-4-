@@ -314,16 +314,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     .checkout-item-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
     .checkout-item-name{font-size:18px;font-weight:700;color:#183482}
     .checkout-item-price{font-size:17px;color:#c87a30;font-weight:700}
-    .rial{font-size:13px;margin-right:2px}
 
     /* Payment method */
     .payment-line{font-size:17px;color:#183482;margin-top:14px;display:flex;align-items:center;gap:8px}
     .payment-label{font-weight:700}
 
-    /* Pickup time (subtle) */
-    .pickup-time-row{margin-top:14px}
-    .pickup-time-row label{font-size:14px;color:#6a7fa0;display:block;margin-bottom:6px}
-    .pickup-time-row select{width:100%;border:1.5px solid #d2dce8;border-radius:12px;padding:8px 12px;font-family:'Playfair Display',serif;font-size:14px;color:#183482;background:#f8fafc;outline:none;cursor:pointer}
+    .pickup-time-row{font-size:17px;color:#183482;margin-top:14px;display:flex;align-items:center;gap:8px}
+    .pickup-time-label{font-weight:700}
+    .pickup-time-value{font-weight:400}
 
     /* Right side – map */
     .pickup-label{font-size:16px;font-weight:700;color:#183482;text-align:center;margin-bottom:10px}
@@ -336,7 +334,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     .total-row{display:flex;align-items:center;gap:14px;margin-bottom:24px}
     .total-label{font-size:32px;font-weight:700;color:#183482}
     .total-amount{font-size:32px;font-weight:700;color:#ea8b2c}
-    .rial-lg{font-size:22px;margin-right:2px}
     .place-order-btn{display:block;width:100%;background:#173993;color:#fff;border:none;border-radius:22px;padding:22px 20px;font-size:30px;font-family:'Playfair Display',serif;cursor:pointer;text-align:center;transition:background .2s}
     .place-order-btn:hover{background:#0f2874}
 
@@ -350,12 +347,46 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     .footer-email{display:flex;align-items:center;gap:6px;color:rgba(255,255,255,.9);font-size:14px}
     .footer-bottom{display:flex;align-items:center;gap:8px;color:rgba(255,255,255,.7);font-size:13px;flex-wrap:wrap;justify-content:center}
 
-    @media(max-width:700px){
+    /* ── HAMBURGER ── */
+    .hamburger{display:none;flex-direction:column;gap:5px;cursor:pointer;background:none;border:none;padding:6px}
+    .hamburger span{display:block;width:24px;height:2.5px;background:#fff;border-radius:2px;transition:all .3s}
+    .hamburger.open span:nth-child(1){transform:translateY(7.5px) rotate(45deg)}
+    .hamburger.open span:nth-child(2){opacity:0}
+    .hamburger.open span:nth-child(3){transform:translateY(-7.5px) rotate(-45deg)}
+    .mobile-menu{display:none;position:fixed;inset:0;top:72px;background:linear-gradient(180deg,#1a3a6b 0%,#2255a4 100%);z-index:9999;flex-direction:column;padding:32px 28px;gap:0;overflow-y:auto}
+    .mobile-menu.open{display:flex}
+    .mobile-menu a{color:rgba(255,255,255,0.85);font-size:22px;font-weight:700;font-family:'Playfair Display',serif;padding:18px 0;border-bottom:1px solid rgba(255,255,255,0.12);text-decoration:none}
+    .mobile-menu a:hover{color:#fff}
+    .mobile-search{margin-bottom:16px;position:relative}
+    .mobile-search svg{position:absolute;left:14px;top:50%;transform:translateY(-50%);opacity:.6;pointer-events:none}
+    .mobile-search input{width:100%;background:rgba(255,255,255,0.15);border:1.5px solid rgba(255,255,255,0.4);border-radius:50px;padding:12px 16px 12px 40px;color:#fff;font-size:15px;outline:none;font-family:'Playfair Display',serif}
+    .mobile-search input::placeholder{color:rgba(255,255,255,0.6)}
+.mobile-search-dropdown{display:none;background:#fff;border-radius:16px;margin:0 0 8px;overflow:hidden;max-height:55vh;overflow-y:auto;box-shadow:0 4px 24px rgba(26,58,107,0.18)}
+.mobile-search-dropdown.open{display:block}
+.mobile-search-dropdown a.search-item-row{color:#1a3a6b!important;font-size:14px!important;font-weight:400!important;padding:10px 16px!important;border-bottom:1px solid #f5f8fc!important;display:flex!important;align-items:center!important;gap:12px!important;background:#fff!important}
+.mobile-search-dropdown a.search-item-row:hover{background:#f0f6ff!important}
+.mobile-search-dropdown .search-item-name{font-size:14px!important;font-weight:700!important;color:#1a3a6b!important}
+.mobile-search-dropdown .search-item-sub{font-size:12px!important;color:#7a8fa8!important;font-weight:400!important}
+.mobile-search-dropdown .search-price{margin-left:auto!important;font-size:13px!important;font-weight:700!important;color:#e07a1a!important;white-space:nowrap!important}
+.mobile-search-dropdown .search-section-label{background:#fff;padding:10px 16px 6px!important;font-size:11px!important;font-weight:700!important;color:#b0c4d8!important;letter-spacing:.08em!important;text-transform:uppercase!important}
+.mobile-search-dropdown .search-divider{height:1px;background:#f0f5fc;margin:4px 0}
+.mobile-search-dropdown .search-provider-logo{width:38px!important;height:38px!important;border-radius:50%!important;background:#e0eaf5!important;flex-shrink:0!important;overflow:hidden!important;display:flex!important;align-items:center!important;justify-content:center!important;font-size:15px!important;font-weight:700!important;color:#2255a4!important}
+.mobile-search-dropdown .search-provider-logo img{width:100%;height:100%;object-fit:cover}
+.mobile-search-dropdown .search-thumb{width:38px!important;height:38px!important;border-radius:10px!important;background:#e0eaf5!important;flex-shrink:0!important;display:flex!important;align-items:center!important;justify-content:center!important;font-size:18px!important;overflow:hidden!important}
+.mobile-search-dropdown .search-thumb img{width:100%;height:100%;object-fit:cover;border-radius:10px}
+
+    @media(max-width:768px){
+      nav{padding:0 18px}
+      .nav-logo{height:74px}
+      .nav-center{display:none}
+      .nav-search-wrap{display:none}
+      .hamburger{display:flex}
+      .page-title{font-size:36px}
+      .page-wrap{padding:18px 14px 48px}
       .provider-inner{grid-template-columns:1fr}
       .provider-right{border-left:none;border-top:1.5px solid #e6edf5}
-      .page-title{font-size:42px}
-      nav{padding:0 18px}
-      .nav-center{display:none}
+      .place-order-btn{font-size:22px;padding:18px}
+      .total-label,.total-amount{font-size:24px}
       footer{padding:24px 18px}
     }
   </style>
@@ -419,8 +450,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/>
       </svg>
     </a>
+    <button id="hamburger" class="hamburger" onclick="toggleMobileMenu()" aria-label="Open menu">
+      <span></span><span></span><span></span>
+    </button>
   </div>
 </nav>
+<div class="mobile-menu" id="mobileMenu">
+  <div class="mobile-search">
+    <svg width="16" height="16" fill="none" stroke="#fff" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+    <input type="text" id="mobileSearchInput" placeholder="Search products or providers..." autocomplete="off"/>
+  </div>
+  <div id="mobileSearchDropdown" class="mobile-search-dropdown"></div>
+  <a href="../shared/landing.php" onclick="closeMobileMenu()">Home Page</a>
+  <a href="../shared/landing.php#categories" onclick="closeMobileMenu()">Categories</a>
+  <a href="../shared/landing.php#providers" onclick="closeMobileMenu()">Providers</a>
+</div>
 
 <div class="page-wrap">
   <div class="page-title-row">
@@ -445,8 +489,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $mapId        = 'providerMap_' . preg_replace('/[^a-zA-Z0-9_]/', '_', $providerId);
         $lat          = $location['coordinates']['lat'] ?? null;
         $lng          = $location['coordinates']['lng'] ?? null;
-        $times        = $group['pickupTimes'];
-        if (empty($times)) $times = ['Anytime'];
+        // Get the pickup time the customer already chose (stored in cart)
+        $savedPickupTime = '';
+        foreach ($group['items'] as $_entry) {
+            $_spt = trim((string)($_entry['cartItem']['selectedPickupTime'] ?? ''));
+            if ($_spt !== '') { $savedPickupTime = $_spt; break; }
+        }
+        // Build the times list, injecting the saved time if not already present
+        $times = $group['pickupTimes'];
+        if (empty($times) && $savedPickupTime) {
+            $times = [$savedPickupTime];          // only option is what they chose
+        } elseif (empty($times)) {
+            $times = ['Anytime'];
+        } elseif ($savedPickupTime && !in_array($savedPickupTime, $times, true)) {
+            array_unshift($times, $savedPickupTime); // keep saved time at top
+        }
+        if (!$savedPickupTime) $savedPickupTime = $times[0] ?? 'Anytime';
       ?>
       <div class="provider-block">
         <div class="provider-inner">
@@ -457,28 +515,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <div class="order-heading">Order</div>
 
             <?php foreach ($group['items'] as $entry): ?>
-              <?php $ci = $entry['cartItem']; ?>
+              <?php
+                $ci = $entry['cartItem'];
+                $isDonate = strtolower(trim($entry['item']['listingType'] ?? '')) === 'donate';
+              ?>
               <div class="checkout-item-row">
                 <span class="checkout-item-name"><?= htmlspecialchars($ci['itemName'] ?? 'Item') ?></span>
-                <span class="checkout-item-price"><span class="rial">﷼</span><?= number_format((float)($ci['price'] ?? 0), 2) ?></span>
+                <?php if ($isDonate): ?>
+                  <span class="checkout-item-price" style="color:#2eb35c;font-weight:700;">Donation</span>
+                <?php else: ?>
+                  <span class="checkout-item-price"><img src="../../images/riyal.png" style="height:13px;object-fit:contain;vertical-align:middle;margin-right:2px;" alt="SAR"><?= number_format((float)($ci['price'] ?? 0), 2) ?></span>
+                <?php endif; ?>
               </div>
             <?php endforeach; ?>
 
             <div class="payment-line">
               <span class="payment-label">Payment method:</span>
               <span>Cash</span>
-              <span>💵</span>
             </div>
 
             <!-- Pickup time (required by backend) -->
+            <input type="hidden" name="selectedPickupTime[<?= htmlspecialchars($providerId) ?>]" value="<?= htmlspecialchars($savedPickupTime) ?>" />
             <div class="pickup-time-row">
-              <label for="pickup_<?= htmlspecialchars($providerId) ?>">Pickup time</label>
-              <select id="pickup_<?= htmlspecialchars($providerId) ?>"
-                      name="selectedPickupTime[<?= htmlspecialchars($providerId) ?>]" required>
-                <?php foreach ($times as $time): ?>
-                  <option value="<?= htmlspecialchars($time) ?>"><?= htmlspecialchars($time) ?></option>
-                <?php endforeach; ?>
-              </select>
+              <span class="pickup-time-label">Pickup time:</span>
+              <span class="pickup-time-value"><?= htmlspecialchars($savedPickupTime) ?></span>
             </div>
           </div>
 
@@ -501,7 +561,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <div class="total-section">
       <div class="total-row">
         <span class="total-label">Total Amount</span>
-        <span class="total-amount"><span class="rial-lg">﷼</span><?= number_format($total, 2) ?></span>
+        <?php
+          $allDonate = true;
+          foreach ($groupedByProvider as $_gp) {
+            foreach ($_gp['items'] as $_en) {
+              if (strtolower(trim($_en['item']['listingType'] ?? '')) !== 'donate') { $allDonate = false; break 2; }
+            }
+          }
+        ?>
+        <?php if ($allDonate): ?>
+          <span class="total-amount" style="color:#2eb35c;">Donation</span>
+        <?php else: ?>
+          <span class="total-amount"><img src="../../images/riyal.png" style="height:20px;object-fit:contain;vertical-align:middle;margin-right:3px;" alt="SAR"><?= number_format($total, 2) ?></span>
+        <?php endif; ?>
       </div>
       <button type="submit" class="place-order-btn">Place order</button>
     </div>
@@ -584,6 +656,57 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     input.addEventListener('input',function(){ const q=this.value.trim(); clearTimeout(timer); if(q.length<2){ dropdown.classList.remove('open'); dropdown.innerHTML=''; return; } dropdown.innerHTML='<div class="search-loading">Searching...</div>'; dropdown.classList.add('open'); timer=setTimeout(()=>{ fetch('../../back-end/search.php?q='+encodeURIComponent(q)).then(r=>r.json()).then(render).catch(()=>{ dropdown.innerHTML='<div class="search-empty">Search unavailable</div>'; dropdown.classList.add('open'); }); },220); });
     document.addEventListener('click',function(e){ const notif=document.getElementById('notifDropdown'); const bellWrap=document.querySelector('.nav-bell-wrap'); if(notif&&bellWrap&&!bellWrap.contains(e.target)) notif.classList.remove('open'); if(!wrap.contains(e.target)) dropdown.classList.remove('open'); });
   })();
+
+  function toggleMobileMenu(){
+    const menu=document.getElementById('mobileMenu');
+    const btn=document.getElementById('hamburger');
+    menu.classList.toggle('open');
+    btn.classList.toggle('open');
+    document.body.style.overflow=menu.classList.contains('open')?'hidden':'';
+  }
+  function closeMobileMenu(){
+    document.getElementById('mobileMenu')?.classList.remove('open');
+    document.getElementById('hamburger')?.classList.remove('open');
+    document.body.style.overflow='';
+  }
+  document.getElementById('mobileSearchInput')?.addEventListener('input', function(){
+  const q = this.value.trim();
+  const dd = document.getElementById('mobileSearchDropdown');
+  if(!dd) return;
+  if(q.length < 2){ dd.classList.remove('open'); dd.innerHTML=''; return; }
+  dd.innerHTML = '<div style="padding:14px;text-align:center;color:#b0c4d8;font-size:13px;font-family:\'Playfair Display\',serif;">Searching...</div>';
+  dd.classList.add('open');
+  clearTimeout(window._mobTimer);
+  window._mobTimer = setTimeout(()=>{
+    fetch('../../back-end/search.php?q='+encodeURIComponent(q))
+      .then(r=>r.json())
+      .then(data=>{
+        const items=data.items||[], providers=data.providers||[];
+        if(!items.length&&!providers.length){
+          dd.innerHTML='<div style="padding:14px;text-align:center;color:#b0c4d8;font-size:13px;">No matches found</div>';
+          dd.classList.add('open'); return;
+        }
+        let html='';
+        if(providers.length){
+          html+='<div class="search-section-label">Providers</div>';
+          providers.forEach(p=>{
+            const logo=p.businessLogo?`<div class="search-provider-logo"><img src="${p.businessLogo}"/></div>`:`<div class="search-provider-logo">${p.businessName.charAt(0)}</div>`;
+            html+=`<a class="search-item-row" href="../customer/providers-page.php?providerId=${p.id}" onclick="closeMobileMenu()">${logo}<div><p class="search-item-name">${p.businessName}</p><p class="search-item-sub">${p.category||''}</p></div></a>`;
+          });
+        }
+        if(items.length){
+          if(providers.length) html+='<div class="search-divider"></div>';
+          html+='<div class="search-section-label">Products</div>';
+          items.forEach(item=>{
+            const t=item.photoUrl?`<div class="search-thumb"><img src="${item.photoUrl}"/></div>`:'<div class="search-thumb">&#127837;</div>';
+            html+=`<a class="search-item-row" href="../customer/item-details.php?itemId=${item.id}" onclick="closeMobileMenu()">${t}<div><p class="search-item-name">${item.name}</p></div><span class="search-price">${item.price||''}</span></a>`;
+          });
+        }
+        dd.innerHTML=html; dd.classList.add('open');
+      })
+      .catch(()=>{ dd.innerHTML='<div style="padding:14px;text-align:center;color:#b0c4d8;font-size:13px;">Search unavailable</div>'; dd.classList.add('open'); });
+  }, 220);
+});
 </script>
 </body>
 </html>

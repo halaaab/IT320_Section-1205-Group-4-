@@ -40,7 +40,10 @@ class Cart extends BaseModel {
                 ],
                 [
                     '$inc' => ['cartItems.$.quantity' => (int) $item['quantity']],
-                    '$set' => ['updatedAt' => new MongoDB\BSON\UTCDateTime()],
+                    '$set' => [
+                        'cartItems.$.selectedPickupTime' => $item['selectedPickupTime'] ?? '',
+                        'updatedAt' => new MongoDB\BSON\UTCDateTime(),
+                    ],
                 ]
             );
         } else {
@@ -99,6 +102,22 @@ class Cart extends BaseModel {
                 '$set' => [
                     'cartItems' => [],
                     'updatedAt' => new MongoDB\BSON\UTCDateTime(),
+                ]
+            ]
+        );
+    }
+
+    // ── Update a single field on a specific cart item ──
+    public function updateItemField(string $customerId, string $itemId, string $field, $value): void {
+        $this->collection->updateOne(
+            [
+                'customerId'       => self::toObjectId($customerId),
+                'cartItems.itemId' => self::toObjectId($itemId),
+            ],
+            [
+                '$set' => [
+                    "cartItems.$.{$field}" => $value,
+                    'updatedAt'            => new MongoDB\BSON\UTCDateTime(),
                 ]
             ]
         );
