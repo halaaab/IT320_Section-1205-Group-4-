@@ -536,13 +536,14 @@ try {
     </div>
   </nav>
 <div class="mobile-menu" id="mobileMenu">
-    <div class="mobile-search">
-    <svg width="18" height="18" fill="none" stroke="#fff" stroke-width="2" viewBox="0 0 24 24">
-      <circle cx="11" cy="11" r="7"></circle>
-      <path d="m21 21-4.3-4.3"></path>
-    </svg>
-    <input type="text" id="mobileSearchInput" placeholder="Search products or providers..." />
-  </div>
+   <div class="mobile-search">
+  <svg width="18" height="18" fill="none" stroke="#fff" stroke-width="2" viewBox="0 0 24 24">
+    <circle cx="11" cy="11" r="7"></circle>
+    <path d="m21 21-4.3-4.3"></path>
+  </svg>
+  <input type="text" id="mobileSearchInput" placeholder="Search products or providers..." />
+  <div class="search-dropdown" id="mobileSearchDropdown"></div>  <!-- ADD THIS -->
+</div>
   <a href="../shared/landing.php" onclick="closeMobileMenu()">Home</a>
   <a href="../customer/customer-profile.php" onclick="closeMobileMenu()">Profile</a>
   <a href="../customer/favourites.php" onclick="closeMobileMenu()">Favourites</a>
@@ -1002,6 +1003,75 @@ document.getElementById('mobileSearchInput')?.addEventListener('input', function
     desktopSearch.value = this.value;
     desktopSearch.dispatchEvent(new Event('input'));
   }
+});
+function buildResultsHTML({ items = [], providers = [] }, q) {
+  let html = '';
+  html += '<div class="search-section-label">Providers</div>';
+  if (providers.length) {
+    providers.forEach(p => {
+      const logo = p.businessLogo
+        ? `<div class="search-provider-logo"><img src="${p.businessLogo}"/></div>`
+        : `<div class="search-provider-logo">${p.businessName.charAt(0).toUpperCase()}</div>`;
+      html += `<a class="search-item-row" href="providers-page.php?providerId=${p.id}">
+        ${logo}
+        <div><p class="search-item-name">${hl(p.businessName,q)}</p><p class="search-item-sub">${p.category}</p></div>
+      </a>`;
+    });
+  } else {
+    html += `<div class="search-no-match">No providers match "<em>${q}</em>"</div>`;
+  }
+  html += '<div class="search-divider"></div>';
+  html += '<div class="search-section-label">Products</div>';
+  if (items.length) {
+    items.forEach(item => {
+      const thumb = item.photoUrl
+        ? `<div class="search-thumb"><img src="${item.photoUrl}"/></div>`
+        : '<div class="search-thumb">🍱</div>';
+      html += `<a class="search-item-row" href="item-details.php?itemId=${item.id}">
+        ${thumb}
+        <div><p class="search-item-name">${hl(item.name,q)}</p><p class="search-item-sub">Product</p></div>
+        <span class="search-price">${item.price}</span>
+      </a>`;
+    });
+  } else {
+    html += `<div class="search-no-match">No products match "<em>${q}</em>"</div>`;
+  }
+  return html;
+}
+
+// Replace renderResults to use buildResultsHTML
+function renderResults(data, q) {
+  searchDropdown.innerHTML = buildResultsHTML(data, q);
+  searchDropdown.classList.add('open');
+}
+
+// Replace the mobile search listener
+document.getElementById('mobileSearchInput')?.addEventListener('input', function() {
+  clearTimeout(searchTimer);
+  const q = this.value.trim();
+  const mobileDD = document.getElementById('mobileSearchDropdown');
+  if (q.length < 2) { mobileDD.classList.remove('open'); return; }
+  mobileDD.innerHTML = '<div class="search-loading">Searching...</div>';
+  mobileDD.classList.add('open');
+  searchTimer = setTimeout(async () => {
+    try {
+      const res  = await fetch(`../../back-end/search.php?q=${encodeURIComponent(q)}`);
+      const data = await res.json();
+      mobileDD.innerHTML = buildResultsHTML(data, q);
+    } catch {
+      mobileDD.innerHTML = '<div class="search-empty">Something went wrong.</div>';
+    }
+  }, 280);
+});
+
+// Add mobile dropdown to outside-click handler
+document.addEventListener('click', e => {
+  if (searchWrap && !searchWrap.contains(e.target)) closeSearch();
+  const mobileSearch = document.querySelector('.mobile-search');
+  const mobileDD = document.getElementById('mobileSearchDropdown');
+  if (mobileSearch && !mobileSearch.contains(e.target)) mobileDD?.classList.remove('open');
+  const bellWrap = document.querySelector('.nav-bell-wrap');
+  if (bellWrap && !bellWrap.contains(e.target)) document.getElementById('notifDropdown')?.classList.remove('open');
 });
 </script>
 </body>

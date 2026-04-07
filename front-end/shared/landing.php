@@ -1362,6 +1362,8 @@ if ($inCart && $inFav) {
       <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
     </svg>
     <input type="text" id="mobileSearchInput" placeholder="Search products or providers..." autocomplete="off"/>
+   
+    <div class="search-dropdown" id="mobileSearchDropdown"></div>  <!-- ADD THIS -->
   </div>
   <a href="../shared/landing.php" onclick="closeMobileMenu()">Home Page</a>
   <a href="#categories" onclick="closeMobileMenu()">Categories</a>
@@ -1757,15 +1759,15 @@ if ($inCart && $inFav) {
 
     function closeSearch() { searchDropdown?.classList.remove('open'); }
 
-    async function doSearch(q) {
-      try {
-        const res  = await fetch(`../../back-end/search.php?q=${encodeURIComponent(q)}`);
-        const data = await res.json();
-        renderResults(data, q);
-      } catch(e) {
-        searchDropdown.innerHTML = '<div class="search-empty">Something went wrong.</div>';
-      }
-    }
+   async function doSearch(q) {
+  try {
+    const res  = await fetch(`../../back-end/search.php?q=${encodeURIComponent(q)}`);
+    const data = await res.json();
+    renderResults(data, q);
+  } catch(e) {
+    searchDropdown.innerHTML = '<div class="search-empty">Something went wrong.</div>';
+  }
+}
 
     function renderResults({ items = [], providers = [] }, q) {
       let html = '';
@@ -1821,11 +1823,88 @@ function closeMobileMenu() {
   document.getElementById('hamburger').classList.remove('open');
   document.body.style.overflow = '';
 }
+// ── Replace renderResults ──
+function buildResultsHTML({ items = [], providers = [] }, q) {
+  let html = '';
 
+  html += '<div class="search-section-label">Providers</div>';
+  if (providers.length) {
+    providers.forEach(p => {
+      const logo = p.businessLogo
+        ? `<div class="search-provider-logo"><img src="${p.businessLogo}"/></div>`
+        : `<div class="search-provider-logo">${p.businessName.charAt(0).toUpperCase()}</div>`;
+      html += `<a class="search-item-row" href="../customer/providers-page.php?providerId=${p.id}">
+        ${logo}
+        <div><p class="search-item-name">${hl(p.businessName,q)}</p><p class="search-item-sub">${p.category}</p></div>
+      </a>`;
+    });
+  } else {
+    html += `<div class="search-no-match">No providers match "<em>${q}</em>"</div>`;
+  }
+
+  html += '<div class="search-divider"></div>';
+  html += '<div class="search-section-label">Products</div>';
+  if (items.length) {
+    items.forEach(item => {
+      const thumb = item.photoUrl
+        ? `<div class="search-thumb"><img src="${item.photoUrl}"/></div>`
+        : '<div class="search-thumb">🍱</div>';
+      html += `<a class="search-item-row" href="../customer/item-details.php?itemId=${item.id}">
+        ${thumb}
+        <div><p class="search-item-name">${hl(item.name,q)}</p><p class="search-item-sub">Product</p></div>
+        <span class="search-price">${item.price}</span>
+      </a>`;
+    });
+  } else {
+    html += `<div class="search-no-match">No products match "<em>${q}</em>"</div>`;
+  }
+
+  return html;
+}
+
+function renderResults(data, q) {
+  searchDropdown.innerHTML = buildResultsHTML(data, q);
+  searchDropdown.classList.add('open');
+}
 // ── Mobile search mirrors desktop search ──
-document.getElementById('mobileSearchInput')?.addEventListener('input', function() {
-  document.getElementById('searchInput').value = this.value;
-  document.getElementById('searchInput').dispatchEvent(new Event('input'));
+document.getElementById('mobileSearchInput')?.addEventListener('input', function () {
+  clearTimeout(searchTimer);
+  const q = this.value.trim();
+  const mobileDD = document.getElementById('mobileSearchDropdown');
+
+  if (q.length < 2) {
+    mobileDD.classList.remove('open');
+    return;
+  }
+
+  mobileDD.innerHTML = '<div class="search-loading">Searching...</div>';
+  mobileDD.classList.add('open');
+
+  searchTimer = setTimeout(async () => {
+    try {
+      const res  = await fetch(`../../back-end/search.php?q=${encodeURIComponent(q)}`);
+      const data = await res.json();
+      // render into mobile dropdown directly
+      mobileDD.innerHTML = buildResultsHTML(data, q);
+      mobileDD.classList.add('open');
+    } catch {
+      mobileDD.innerHTML = '<div class="search-empty">Something went wrong.</div>';
+    }
+  }, 280);
+});
+document.addEventListener('click', e => {
+  if (searchWrap && !searchWrap.contains(e.target)) closeSearch();
+
+  const mobileSearch = document.querySelector('.mobile-search');
+  const mobileDD = document.getElementById('mobileSearchDropdown');
+  if (mobileSearch && !mobileSearch.contains(e.target)) {
+    mobileDD?.classList.remove('open');
+  }
+
+  const bellWrap = document.querySelector('.nav-bell-wrap');
+  if (bellWrap && !bellWrap.contains(e.target)) {
+    document.getElementById('notifDropdown')?.classList.remove('open');
+  }
 });
     function hl(text, q) {
       return text.replace(
