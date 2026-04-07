@@ -1,5 +1,5 @@
 # IT320_Section-1205-Group-4-
-# 🍽️ RePlate — Help Riyadh Go Green
+# RePlate — Help Riyadh Go Green
 
 An English-based sustainability web platform built for Riyadh, Saudi Arabia — connecting food providers with customers through organized food selling and donation listings to reduce waste.
 ---
