@@ -108,29 +108,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $formAction = $_POST['formAction'] ?? 'addItem';
 
     // AJAX delete
-   if ($formAction === 'deleteItem') {
-    header('Content-Type: application/json');
+    if ($formAction === 'deleteItem') {
+        header('Content-Type: application/json');
 
-    try {
-        $itemId = $_POST['itemId'] ?? '';
+        try {
+            $itemId = $_POST['itemId'] ?? '';
+            if ($itemId === '') {
+                throw new Exception('Missing item id');
+            }
 
-        if ($itemId === '') {
-            throw new Exception('Missing item id');
+            $itemModel->delete($itemId);
+            echo json_encode(['success' => true]);
+        } catch (Exception $e) {
+            echo json_encode(['success' => false, 'message' => $e->getMessage()]);
         }
-
-        $itemModel->deleteById($itemId);
-
-        echo json_encode([
-            'success' => true
-        ]);
-    } catch (Throwable $e) {
-        echo json_encode([
-            'success' => false,
-            'message' => $e->getMessage()
-        ]);
+        exit;
     }
-    exit;
-}
+
     // Add / Edit form
     $photoUrl = trim($_POST['existingPhotoUrl'] ?? '');
 
@@ -228,9 +222,8 @@ $today = date('Y-m-d');
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<style>
 
+<style>
 *{
   box-sizing:border-box;
   margin:0;
@@ -634,24 +627,24 @@ nav.navbar{
 }
 
 /* ===== TABS ===== */
-.items-topbar > div {
-  display: flex;
-  gap: 8px;
-  width: 100%;
+.items-topbar{
+  display:flex;
+  justify-content:flex-start;
+  margin-bottom:28px;
 }
 
-.seg-btn {
-  min-width: 180px;
-  padding: 10px 20px;
-  border-radius: 18px;
-  border: 1.8px solid #ea8b2c;
-  background: #fff;
-  color: #183482;
-  font-size: 19px;
-  text-decoration: none;
-  text-align: center;
-  display: inline-block;
-  transition: .2s;
+.seg-btn{
+  min-width:180px;
+  padding:10px 20px;
+  border-radius:18px;
+  border:1.8px solid #ea8b2c;
+  background:#fff;
+  color:#183482;
+  font-size:19px;
+  text-decoration:none;
+  text-align:center;
+  display:inline-block;
+  transition:.2s;
 }
 
 .seg-btn.active{
@@ -1178,358 +1171,73 @@ input[type="file"].form-input{
 .field-error.show{
   display:block;
 }
-/* ── MOBILE HEADER / HAMBURGER ── */
-.hamburger {
-  display: none;
-  flex-direction: column;
-  gap: 5px;
-  cursor: pointer;
-  background: none;
-  border: none;
-  padding: 6px;
-}
-
-.hamburger span {
-  display: block;
-  width: 24px;
-  height: 2.5px;
-  background: #fff;
-  border-radius: 2px;
-  transition: all 0.3s;
-}
-
-.hamburger.open span:nth-child(1) {
-  transform: translateY(7.5px) rotate(45deg);
-}
-
-.hamburger.open span:nth-child(2) {
-  opacity: 0;
-}
-
-.hamburger.open span:nth-child(3) {
-  transform: translateY(-7.5px) rotate(-45deg);
-}
-
-.mobile-menu {
-  display: none;
-  position: fixed;
-  inset: 0;
-  top: 72px;
-  background: linear-gradient(180deg, #1a3a6b 0%, #2255a4 100%);
-  z-index: 99;
-  flex-direction: column;
-  padding: 24px 20px;
-}
-
-.mobile-menu.open {
-  display: flex;
-}
-
-.mobile-menu a {
-  color: rgba(255,255,255,0.9);
-  font-size: 22px;
-  font-weight: 700;
-  padding: 18px 0;
-  border-bottom: 1px solid rgba(255,255,255,0.12);
-  text-decoration: none;
-}
-
-.mobile-search {
-  margin-top: 22px;
-  position: relative;
-}
-.mobile-search svg {
-  position: absolute;
-  left: 14px;
-  top: 50%;
-  transform: translateY(-50%);
-  opacity: 0.6;
-  pointer-events: none;
-}
-
-.mobile-search input::placeholder {
-  color: rgba(255,255,255,0.6);
-  font-family: 'Playfair Display', serif;
-}
-.mobile-search input {
-  width: 100%;
-  background: rgba(255,255,255,0.15);
-  border: 1.5px solid rgba(255,255,255,0.4);
-  border-radius: 50px;
-  padding: 12px 16px 12px 40px;
-  color: #fff;
-  outline: none;
-}
-
-.search-dropdown {
-  display: none;
-  position: absolute;
-  top: calc(100% + 10px);
-  left: 0;
-  width: 360px;
-  max-width: calc(100vw - 40px);
-  background: #fff;
-  border-radius: 18px;
-  border: 1.5px solid #e0eaf5;
-  box-shadow: 0 12px 40px rgba(26,58,107,0.18);
-  z-index: 9999;
-  overflow: hidden;
-}
-
-.search-dropdown.visible {
-  display: block;
-}
-
-.sd-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 16px;
-  text-decoration: none;
-  color: inherit;
-  transition: background 0.15s;
-}
-
-.sd-row:hover {
-  background: #f4f8ff;
-}
-
-.sd-icon {
-  width: 38px;
-  height: 38px;
-  border-radius: 10px;
-  background: #edf3fb;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #1a3a6b;
-  flex-shrink: 0;
-}
-
-.sd-info {
-  min-width: 0;
-}
-
-.sd-name {
-  font-size: 14px;
-  font-weight: 700;
-  color: #1a3a6b;
-}
-
-.sd-sub {
-  font-size: 12px;
-  color: #7a8fa8;
-  margin-top: 2px;
-}
-
-.mobile-search {
-  position: relative;
-}
-
-.mobile-search .search-dropdown {
-  top: calc(100% + 12px);
-  left: 0;
-  width: 100%;
-}
-/* DESKTOP SEARCH RESULT IMPROVEMENT */
-.search-dropdown {
-  width: 405px;
-  border-radius: 20px;
-  overflow: hidden;
-}
-
-.sd-section-title {
-  font-size: 13px;
-  font-weight: 700;
-  color: #183482;
-  padding: 12px 16px 6px;
-  background: #fff;
-}
-
-.sd-row {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 14px 16px;
-}
-
-.sd-icon {
-  width: 48px;
-  height: 48px;
-  border-radius: 14px;
-  overflow: hidden;
-  flex-shrink: 0;
-  background: #edf3fb;
-}
-
-.sd-icon img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  border-radius: 14px;
-}
-
-.sd-info {
-  min-width: 0;
-  flex: 1;
-}
-
-.sd-name {
-  font-size: 16px;
-  font-weight: 700;
-  color: #183482;
-  line-height: 1.2;
-  margin-bottom: 2px;
-}
-
-.sd-sub {
-  font-size: 13px;
-  color: #7a8fa8;
-  line-height: 1.3;
-}
-
-@media (max-width: 768px) {
-  .hamburger {
-    display: flex;
+.search-drop-section { padding:10px 16px 4px; font-size:11px; font-weight:700; color:#8aa3c0; letter-spacing:.08em; text-transform:uppercase; }
+.search-drop-item { display:flex; align-items:center; gap:12px; padding:10px 16px; cursor:pointer; transition:.15s; text-decoration:none; }
+.search-drop-item:hover { background:#f4f8ff; }
+.search-drop-thumb { width:42px; height:42px; border-radius:10px; object-fit:cover; background:#e8edf5; flex-shrink:0; }
+.search-drop-thumb-placeholder { width:42px; height:42px; border-radius:10px; background:#e8edf5; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:18px; }
+.search-drop-name { font-size:14px; font-weight:700; color:#183482; }
+.search-drop-sub { font-size:12px; color:#8aa3c0; margin-top:2px; }
+.search-drop-badge { margin-left:auto; font-size:12px; font-weight:700; color:#ea8b2c; flex-shrink:0; }
+.search-drop-empty { padding:18px 16px; font-size:14px; color:#8aa3c0; text-align:center; }
+.search-drop-divider { height:1px; background:#edf1f7; margin:4px 0; }
+/* ===== MOBILE ===== */
+@media (max-width:768px){
+  nav.navbar{
+    padding:0 16px;
   }
 
-  .sidebar {
-    display: none;
+  .nav-search-wrap input{
+    width:180px;
   }
 
-  .page-body {
-    display: block;
+  .sidebar{
+    display:none;
   }
 
-  .main {
-    width: 100%;
-    padding: 20px 16px;
-    margin: 0;
-  }
-  .items-topbar > div {
-  display: flex;
-  gap: 8px;
-  width: 100%;
-}
-
-.seg-btn {
-  flex: 1;
-  min-width: 0;
-  width: auto;
-  padding: 10px 6px;
-  font-size: 14px;
-}
-  .items-page-wrap {
-    width: 100%;
-    max-width: 100%;
-    margin: 0 auto;
+  .main{
+    padding:24px 16px;
   }
 
-  nav.navbar {
-    padding: 0 16px;
+  .mode-switch{
+    flex-direction:column;
+    align-items:center;
   }
 
-  .nav-logo {
-    height: 70px;
+  .items-topbar > div{
+    flex-direction:column;
+    width:100%;
   }
 
-  .nav-provider-text {
-    display: none;
-  }
-
-  .nav-search-wrap {
-    display: none;
-  }
-
-.items-header-bar,
-.mode-switch,
-.quick-update-actions,
-.submit-row {
-  flex-direction: column;
-}
-
-  .items-header-left,
-  .items-header-right,
-  .add-item-open-btn,
-  .mode-btn,
   .seg-btn,
-  .quick-cancel-btn,
-  .quick-save-btn,
-  .add-btn {
-    width: 100%;
+  .mode-btn{
+    width:100%;
   }
 
-  .order-row {
-    flex-direction: column;
-    align-items: flex-start;
+  .order-row{
+    flex-direction:column;
+    align-items:flex-start;
   }
 
-  .order-right {
-    width: 100%;
-    align-items: flex-start;
+  .order-right{
+    width:100%;
+    align-items:flex-start;
   }
 
   .quick-update-grid,
   .form-grid.two-cols,
-  .type-cards-old {
-    grid-template-columns: 1fr;
+  .type-cards-old{
+    grid-template-columns:1fr;
   }
 
-  #addItemModal > div {
-    width: 100%;
-    padding: 24px 18px;
+  #addItemModal > div{
+    width:95%;
+    padding:24px 18px;
   }
-  .mobile-search .search-dropdown {
-  top: calc(100% + 8px);
-  width: 100%;
-  max-width: 100%;
-  border-radius: 16px;
-}
 
-.mobile-search .sd-row {
-  padding: 10px 12px;
-  gap: 10px;
-}
-
-.mobile-search .sd-icon {
-  width: 42px;
-  height: 42px;
-  border-radius: 12px;
-  flex-shrink: 0;
-}
-
-.mobile-search .sd-icon img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  border-radius: 12px;
-}
-
-.mobile-search .sd-info {
-  min-width: 0;
-  flex: 1;
-}
-
-.mobile-search .sd-name {
-  font-size: 15px;
-  font-weight: 700;
-  line-height: 1.2;
-  color: #183482;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.mobile-search .sd-sub {
-  font-size: 13px;
-  line-height: 1.2;
-  margin-top: 3px;
-}
-
-.mobile-search .sd-section-title {
-  font-size: 12px;
-  padding: 10px 12px 6px;
-}
+  .add-btn{
+    width:100%;
+  }
 }
 </style>
 <title>RePlate – My Items</title>
@@ -1538,74 +1246,45 @@ input[type="file"].form-input{
 
 <body>
 <nav class="navbar">
-  <div class="nav-left">
-    <img class="nav-logo" src="../../images/Replate-white.png" alt="RePlate"/>
-  </div>
-
-  <div class="nav-right">
-<div class="nav-search-wrap" id="searchWrap">
+<div class="nav-left">
+<img class="nav-logo" src="../../images/Replate-white.png" alt="RePlate"/>
+</div>
+<div class="nav-right">
+<!-- Replace the existing nav-search-wrap div with this -->
+<div class="nav-search-wrap" style="position:relative;">
   <svg width="16" height="16" fill="none" stroke="#fff" stroke-width="2" viewBox="0 0 24 24">
-    <circle cx="11" cy="11" r="8"/>
-    <path d="M21 21l-4.35-4.35"/>
+    <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
   </svg>
-
-  <input
-    type="text"
-    id="searchInput"
-    placeholder="Search items ..."
-    autocomplete="off"
-  />
-
-  <div class="search-dropdown" id="searchDropdown"></div>
+  <input type="text" id="navSearchInput" placeholder="Search items..." autocomplete="off"/>
+  <div id="navSearchDropdown" style="
+    display:none;
+    position:absolute;
+    top:48px;
+    left:0;
+    width:340px;
+    background:#fff;
+    border-radius:16px;
+    box-shadow:0 8px 32px rgba(26,58,107,0.18);
+    z-index:9999;
+    overflow:hidden;
+    border:1.5px solid #d7e1ee;
+  "></div>
 </div>
-
-    <div class="nav-provider-info">
-      <div class="nav-provider-logo">
-        <?php if ($providerLogo): ?>
-          <img src="<?= htmlspecialchars($providerLogo) ?>" alt="<?= htmlspecialchars($providerName) ?>"/>
-        <?php else: ?>
-          <?= mb_strtoupper(mb_substr($providerName, 0, 1)) ?>
-        <?php endif; ?>
-      </div>
-
-      <div class="nav-provider-text">
-        <span class="nav-provider-name"><?= htmlspecialchars($providerName) ?></span>
-        <span class="nav-provider-email"><?= htmlspecialchars($providerEmail) ?></span>
-      </div>
-    </div>
-
-    <button id="hamburger" class="hamburger" onclick="toggleMobileMenu()" aria-label="Open menu">
-      <span></span>
-      <span></span>
-      <span></span>
-    </button>
-
-  </div>
+<div class="nav-provider-info">
+<div class="nav-provider-logo">
+<?php if ($providerLogo): ?>
+<img src="<?= htmlspecialchars($providerLogo) ?>" alt="<?= htmlspecialchars($providerName) ?>"/>
+<?php else: ?>
+<?= mb_strtoupper(mb_substr($providerName, 0, 1)) ?>
+<?php endif; ?>
+</div>
+<div class="nav-provider-text">
+<span class="nav-provider-name"><?= htmlspecialchars($providerName) ?></span>
+<span class="nav-provider-email"><?= htmlspecialchars($providerEmail) ?></span>
+</div>
+</div>
+</div>
 </nav>
-
-<div class="mobile-menu" id="mobileMenu">
-  <div class="mobile-search">
-    <svg width="18" height="18" fill="none" stroke="#fff" stroke-width="2" viewBox="0 0 24 24">
-      <circle cx="11" cy="11" r="7"></circle>
-      <path d="m21 21-4.3-4.3"></path>
-    </svg>
-
-    <input
-      type="text"
-      id="mobileSearchInput"
-      placeholder="Search items ..."
-    />
-
-    <div class="search-dropdown" id="mobileSearchDropdown"></div>
-  </div>
-
-  <a href="provider-dashboard.php" onclick="closeMobileMenu()">Dashboard</a>
-  <a href="provider-items.php" onclick="closeMobileMenu()">Items</a>
-  <a href="provider-orders.php" onclick="closeMobileMenu()">Orders</a>
-  <a href="provider-profile.php" onclick="closeMobileMenu()">Profile</a>
-  <a href="provider-dashboard.php?logout=1" onclick="closeMobileMenu()">Log out</a>
-</div>
-
 <div class="page-body">
 <aside class="sidebar">
 <p class="sidebar-welcome">Welcome Back ,</p>
@@ -1643,7 +1322,6 @@ Profile
 </div>
 </div>
 </aside>
-<div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
 <main class="main">
   <div class="items-page-wrap">
 <div class="page-header">
@@ -1712,9 +1390,8 @@ Profile
     ?>
     <div
       class="order-row quick-item-card"
-  id="item-<?= htmlspecialchars((string)$item['_id']) ?>"
-  onclick="selectQuickItem(this)"
-  data-id="<?= htmlspecialchars((string)$item['_id']) ?>"
+      onclick="selectQuickItem(this)"
+      data-id="<?= htmlspecialchars((string)$item['_id']) ?>"
       data-name="<?= htmlspecialchars($item['itemName'] ?? 'Item') ?>"
       data-description="<?= htmlspecialchars($item['description'] ?? '') ?>"
       data-photo="<?= htmlspecialchars($item['photoUrl'] ?? '') ?>"
@@ -1829,7 +1506,7 @@ Profile
 <div>
   <div class="icon-label"><span>Pickup Branch</span></div>
   <select class="form-select" id="quickPickupLocation">
-    <option value="" disabled selected hidden>Select pickup branch</option>
+    <option value="">Select pickup branch</option>
     <?php foreach ($locations as $loc): ?>
       <?php
       $branchName = trim($loc['locationName'] ?? ($loc['label'] ?? ''));
@@ -2076,1066 +1753,377 @@ Profile
 
 </main>
 <script>
-const form = document.getElementById('addItemForm');
-const priceWrap = document.getElementById('priceWrap');
+// ── Type card selection ──
+const form       = document.getElementById('addItemForm');
+const priceWrap  = document.getElementById('priceWrap');
 const priceInput = document.getElementById('priceInput');
-const timeList = document.getElementById('timeList');
+const timeList   = document.getElementById('timeList');
 const hiddenTimesWrap = document.getElementById('hiddenTimesWrap');
 let pickupTimes = <?= json_encode($_POST['pickupTimes'] ?? []) ?>;
 
 function selectTypeCard(type) {
   const donateInput = document.querySelector('input[name="itemType"][value="donate"]');
-  const sellInput = document.querySelector('input[name="itemType"][value="sell"]');
-
-  if (type === 'donate' && donateInput) donateInput.checked = true;
-  if (type === 'sell' && sellInput) sellInput.checked = true;
-
-  const donateCard = document.getElementById('typeCardDonate');
-  const sellCard = document.getElementById('typeCardSell');
-
-  if (donateCard) donateCard.classList.toggle('active', type === 'donate');
-  if (sellCard) sellCard.classList.toggle('active', type === 'sell');
-
-  if (type === 'sell') {
-    priceWrap.style.display = 'block';
-  } else {
-    priceWrap.style.display = 'none';
-    if (priceInput) priceInput.value = '';
-  }
-
+  const sellInput   = document.querySelector('input[name="itemType"][value="sell"]');
+  if (donateInput) donateInput.checked = (type === 'donate');
+  if (sellInput)   sellInput.checked   = (type === 'sell');
+  document.getElementById('typeCardDonate')?.classList.toggle('active', type === 'donate');
+  document.getElementById('typeCardSell')?.classList.toggle('active',   type === 'sell');
+  priceWrap.style.display = (type === 'sell') ? 'block' : 'none';
+  if (type !== 'sell' && priceInput) priceInput.value = '';
   hideError('itemTypeError');
 }
 
 function initTypeCards() {
   const checked = document.querySelector('input[name="itemType"]:checked');
-  if (checked) {
-    selectTypeCard(checked.value);
-  } else {
-    priceWrap.style.display = 'none';
-  }
+  if (checked) selectTypeCard(checked.value);
+  else priceWrap.style.display = 'none';
 }
 
+// ── Pickup times ──
 function renderPickupTimes() {
   timeList.innerHTML = '';
   hiddenTimesWrap.innerHTML = '';
-
   pickupTimes.forEach((time, index) => {
     const chip = document.createElement('span');
     chip.className = 'time-chip';
-    chip.innerHTML = `
-      ${time}
-      <button type="button" onclick="removeTime(${index})" style="border:none;background:none;cursor:pointer;font-weight:bold;">×</button>
-    `;
+    chip.innerHTML = `${time}<button type="button" onclick="removeTime(${index})" style="border:none;background:none;cursor:pointer;font-weight:bold;margin-left:6px;">×</button>`;
     timeList.appendChild(chip);
-
-    const hidden = document.createElement('input');
-    hidden.type = 'hidden';
-    hidden.name = 'pickupTimes[]';
-    hidden.value = time;
-    hiddenTimesWrap.appendChild(hidden);
+    const h = document.createElement('input');
+    h.type = 'hidden'; h.name = 'pickupTimes[]'; h.value = time;
+    hiddenTimesWrap.appendChild(h);
   });
-
   document.querySelectorAll('.slot-btn').forEach(btn => {
     btn.classList.toggle('selected', pickupTimes.includes(btn.textContent.trim()));
   });
 }
 
-function toggleSlot(time, button) {
-  const exists = pickupTimes.includes(time);
-
-  if (exists) {
-    pickupTimes = pickupTimes.filter(t => t !== time);
-  } else {
-    pickupTimes.push(time);
-  }
-
+function toggleSlot(time) {
+  pickupTimes = pickupTimes.includes(time)
+    ? pickupTimes.filter(t => t !== time)
+    : [...pickupTimes, time];
   renderPickupTimes();
 }
 
 function addCustomTime() {
-  const hour = document.getElementById('customHour').value;
-  const minute = document.getElementById('customMinute').value;
-  const ampm = document.getElementById('customAmPm').value;
-
-  if (!hour || !minute) {
-    showError('pickupTimesError');
-    return;
-  }
-
-  const newTime = `${hour}:${minute} ${ampm}`;
-
-  if (!pickupTimes.includes(newTime)) {
-    pickupTimes.push(newTime);
-    renderPickupTimes();
-  }
-
+  const h = document.getElementById('customHour').value;
+  const m = document.getElementById('customMinute').value;
+  const a = document.getElementById('customAmPm').value;
+  if (!h || !m) { showError('pickupTimesError'); return; }
+  const t = `${h}:${m} ${a}`;
+  if (!pickupTimes.includes(t)) { pickupTimes.push(t); renderPickupTimes(); }
   document.getElementById('customHour').value = '';
   document.getElementById('customMinute').value = '';
   document.getElementById('customAmPm').value = 'AM';
 }
 
-function removeTime(index) {
-  pickupTimes.splice(index, 1);
-  renderPickupTimes();
-}
+function removeTime(index) { pickupTimes.splice(index, 1); renderPickupTimes(); }
 
+// ── Error helpers ──
 function showError(id) { document.getElementById(id)?.classList.add('show'); }
 function hideError(id) { document.getElementById(id)?.classList.remove('show'); }
 function markField(el, hasError) { el?.classList.toggle('error', hasError); }
 
-initTypeCards();
-renderPickupTimes();
-</script>
-
-<script>
-const itemPhotoInput = document.getElementById('itemPhoto');
-
+// ── Form validation ──
 form.addEventListener('submit', function(e) {
-    let valid = true;
+  let valid = true;
+  const currentAction = document.getElementById('formAction').value;
+  const isEdit = currentAction === 'editItem';
+  const typeChecked = document.querySelector('input[name="itemType"]:checked');
 
-    const currentAction = document.getElementById('formAction').value;
-    const isEdit = currentAction === 'editItem';
+  if (!typeChecked) { showError('itemTypeError'); valid = false; }
+  else hideError('itemTypeError');
 
-    const typeChecked = document.querySelector('input[name="itemType"]:checked');
-    if (!typeChecked) {
-        showError('itemTypeError');
-        valid = false;
-    } else {
-        hideError('itemTypeError');
-    }
-
-    if (typeChecked && typeChecked.value === 'sell') {
-        if (!priceInput.value || Number(priceInput.value) <= 0) {
-            showError('priceError');
-            markField(priceInput, true);
-            valid = false;
-        } else {
-            hideError('priceError');
-            markField(priceInput, false);
-        }
-    }
-
-    const itemName = document.getElementById('itemName');
-    if (!itemName.value.trim()) {
-        showError('itemNameError');
-        markField(itemName, true);
-        valid = false;
-    } else {
-        hideError('itemNameError');
-        markField(itemName, false);
-    }
-
-    const itemDetails = document.getElementById('itemDetails');
-    if (!itemDetails.value.trim()) {
-        showError('itemDetailsError');
-        markField(itemDetails, true);
-        valid = false;
-    } else {
-        hideError('itemDetailsError');
-        markField(itemDetails, false);
-    }
-
-    // photo required only when adding, not editing
-    if (!isEdit && !itemPhotoInput.files[0]) {
-        showError('itemPhotoError');
-        markField(itemPhotoInput, true);
-        valid = false;
-    } else {
-        hideError('itemPhotoError');
-        markField(itemPhotoInput, false);
-    }
-
-    const category = document.getElementById('categoryId');
-    if (!category.value) {
-        showError('categoryIdError');
-        markField(category, true);
-        valid = false;
-    } else {
-        hideError('categoryIdError');
-        markField(category, false);
-    }
-
-    // pickup times required only when adding
-    if (!isEdit) {
-        if (pickupTimes.length === 0) {
-            showError('pickupTimesError');
-            valid = false;
-        } else {
-            hideError('pickupTimesError');
-        }
-    }
-
-    if (!valid) {
-        e.preventDefault();
-    }
-});
-</script>
-<script>
-function showMode(mode){
-    const viewMode = document.getElementById('viewMode');
-    const viewItemsHelper = document.getElementById('viewItemsHelper');
-    const quickUpdateHelper = document.getElementById('quickUpdateHelper');
-    const viewItemsBtn = document.getElementById('viewItemsBtn');
-    const quickUpdateBtn = document.getElementById('quickUpdateBtn');
-
-    if (mode === 'view') {
-        viewMode.style.display = 'block';
-        viewItemsHelper.style.display = 'block';
-        quickUpdateHelper.style.display = 'none';
-
-        viewItemsBtn.classList.add('active');
-        quickUpdateBtn.classList.remove('active');
-
-        clearQuickSelection();
-    }
-}
-
-function showQuickHelper(){
-    const viewItemsHelper = document.getElementById('viewItemsHelper');
-    const quickUpdateHelper = document.getElementById('quickUpdateHelper');
-    const viewItemsBtn = document.getElementById('viewItemsBtn');
-    const quickUpdateBtn = document.getElementById('quickUpdateBtn');
-
-    viewItemsHelper.style.display = 'none';
-    quickUpdateHelper.style.display = 'block';
-
-    viewItemsBtn.classList.remove('active');
-    quickUpdateBtn.classList.add('active');
-}
-</script>
-<script>
-function saveQuickUpdate(){
-  const data = {
-  id: document.getElementById('quickItemId').value,
-  quantity: document.getElementById('quickQuantity').value,
-  price: document.getElementById('quickPrice').value,
-  expiryDate: document.getElementById('quickExpiryDate').value,
-  pickupDate: document.getElementById('quickPickupDate').value,
-  pickupLocationId: document.getElementById('quickPickupLocation').value,
-  listingType: document.getElementById('quickType').value
-};
-
-  fetch('quick-update-item.php', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data)
-  })
-  .then(res => res.json())
-  .then(res => {
-    if(res.success){
-      showQuickToast('Updated successfully');
-setTimeout(() => {
-  location.reload();
-}, 900);
-    } else {
-      showQuickToast('Error: ' + res.message);
-    }
-  })
-  .catch(err => {
-    showQuickToast('Something went wrong');
-  });
-}
-</script>
-<script>
-function handleQuickTypeChange(){
-  const type = document.getElementById('quickType').value;
-  const priceInput = document.getElementById('quickPrice');
-
-  if (type === 'donate') {
-    priceInput.disabled = true;
-    priceInput.value = 0;
-  } else {
-    priceInput.disabled = false;
+  if (typeChecked?.value === 'sell') {
+    if (!priceInput.value || Number(priceInput.value) <= 0) {
+      showError('priceError'); markField(priceInput, true); valid = false;
+    } else { hideError('priceError'); markField(priceInput, false); }
   }
-}
-</script>
-<script>
-function showQuickToast(message){
-  const toast = document.getElementById('quickToast');
-  toast.textContent = message;
-  toast.style.display = 'block';
 
-  setTimeout(() => {
-    toast.style.display = 'none';
-  }, 2200);
-}
-</script>
-<script>
-document.addEventListener('DOMContentLoaded', function () {
-    const today = new Date().toISOString().split('T')[0];
+  const itemName    = document.getElementById('itemName');
+  const itemDetails = document.getElementById('itemDetails');
+  const category    = document.getElementById('categoryId');
+  const photo       = document.getElementById('itemPhoto');
 
-    // expiry date
-    const expiry = document.getElementById('quickExpiryDate');
-    if (expiry) expiry.setAttribute('min', today);
+  if (!itemName.value.trim())    { showError('itemNameError');    markField(itemName, true);    valid = false; }
+  else                           { hideError('itemNameError');    markField(itemName, false); }
 
-    // pickup date
-    const pickup = document.getElementById('quickPickupDate');
-    if (pickup) pickup.setAttribute('min', today);
+  if (!itemDetails.value.trim()) { showError('itemDetailsError'); markField(itemDetails, true); valid = false; }
+  else                           { hideError('itemDetailsError'); markField(itemDetails, false); }
+
+  if (!isEdit && !photo.files[0]) { showError('itemPhotoError'); markField(photo, true); valid = false; }
+  else                            { hideError('itemPhotoError'); markField(photo, false); }
+
+  if (!category.value) { showError('categoryIdError'); markField(category, true); valid = false; }
+  else                 { hideError('categoryIdError'); markField(category, false); }
+
+  if (!isEdit && pickupTimes.length === 0) { showError('pickupTimesError'); valid = false; }
+  else hideError('pickupTimesError');
+
+  if (!valid) e.preventDefault();
 });
-</script>
-<script>
+
+// ── View / Quick-Update modes ──
+function showMode(mode) {
+  if (mode !== 'view') return;
+  document.getElementById('viewItemsHelper').style.display  = 'block';
+  document.getElementById('quickUpdateHelper').style.display = 'none';
+  document.getElementById('viewItemsBtn').classList.add('active');
+  document.getElementById('quickUpdateBtn').classList.remove('active');
+  clearQuickSelection();
+}
+
+function showQuickHelper() {
+  document.getElementById('viewItemsHelper').style.display  = 'none';
+  document.getElementById('quickUpdateHelper').style.display = 'block';
+  document.getElementById('viewItemsBtn').classList.remove('active');
+  document.getElementById('quickUpdateBtn').classList.add('active');
+}
+
+// ── Quick update ──
+function handleQuickTypeChange() {
+  const type = document.getElementById('quickType').value;
+  const qp   = document.getElementById('quickPrice');
+  qp.disabled = (type === 'donate');
+  if (type === 'donate') qp.value = 0;
+}
+
+function saveQuickUpdate() {
+  const data = {
+    id:               document.getElementById('quickItemId').value,
+    quantity:         document.getElementById('quickQuantity').value,
+    price:            document.getElementById('quickPrice').value,
+    expiryDate:       document.getElementById('quickExpiryDate').value,
+    pickupDate:       document.getElementById('quickPickupDate').value,
+    pickupLocationId: document.getElementById('quickPickupLocation').value,
+    listingType:      document.getElementById('quickType').value
+  };
+  fetch('provider-items.php', {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify(data)
+  })
+  .then(r => r.json())
+  .then(res => {
+    showQuickToast(res.success ? 'Updated successfully' : ('Error: ' + res.message));
+    if (res.success) setTimeout(() => location.reload(), 900);
+  })
+  .catch(() => showQuickToast('Something went wrong'));
+}
+
+function selectQuickItem(card) {
+  if (card.classList.contains('selected')) { clearQuickSelection(); return; }
+  showQuickHelper();
+  document.getElementById('quickItemId').value = card.dataset.id || '';
+  document.querySelectorAll('.quick-item-card').forEach(el => el.classList.remove('selected'));
+  card.classList.add('selected');
+  document.getElementById('quickQuantity').value       = card.dataset.quantity    || '';
+  document.getElementById('quickPrice').value          = card.dataset.price       || '';
+  document.getElementById('quickExpiryDate').value     = card.dataset.expiry      || '';
+  document.getElementById('quickPickupDate').value     = card.dataset.pickupdate  || '';
+  document.getElementById('quickPickupLocation').value = card.dataset.pickuplocation || '';
+  document.getElementById('quickType').value           = card.dataset.type        || 'donate';
+  handleQuickTypeChange();
+  const panel = document.getElementById('quickUpdatePanel');
+  card.insertAdjacentElement('afterend', panel);
+  panel.style.display = 'block';
+  panel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+function clearQuickSelection() {
+  document.querySelectorAll('.quick-item-card').forEach(el => el.classList.remove('selected'));
+  const panel = document.getElementById('quickUpdatePanel');
+  if (panel) panel.style.display = 'none';
+  document.getElementById('viewItemsHelper').style.display  = 'block';
+  document.getElementById('quickUpdateHelper').style.display = 'none';
+  document.getElementById('viewItemsBtn').classList.add('active');
+  document.getElementById('quickUpdateBtn').classList.remove('active');
+  const qi = document.getElementById('quickItemId');
+  if (qi) qi.value = '';
+}
+
+// ── Delete ──
 let deleteTargetItemId = '';
 
-function deleteItem(itemId, event){
+function deleteItem(itemId, event) {
   event.stopPropagation();
   deleteTargetItemId = itemId;
   document.getElementById('deleteModal').style.display = 'flex';
 }
 
-function closeDeleteModal(){
+function closeDeleteModal() {
   deleteTargetItemId = '';
   document.getElementById('deleteModal').style.display = 'none';
 }
 
-function confirmDeleteItem(){
+function confirmDeleteItem() {
   if (!deleteTargetItemId) return;
-
-  const currentId = deleteTargetItemId;
-
-  const formData = new FormData();
-  formData.append('formAction', 'deleteItem');
-  formData.append('itemId', currentId);
-
-  fetch(window.location.href, {
-    method: 'POST',
-    body: formData
-  })
-  .then(res => res.json())
-  .then(data => {
-    if (data.success) {
-      closeDeleteModal();
-
-      const itemCard =
-        document.getElementById('item-' + currentId) ||
-        document.querySelector('[data-item-id="' + currentId + '"]') ||
-        document.querySelector('[data-id="' + currentId + '"]');
-
-      if (itemCard) {
-        itemCard.style.transition = '0.3s ease';
-        itemCard.style.opacity = '0';
-        itemCard.style.transform = 'translateY(-10px)';
-
-        setTimeout(() => {
-          itemCard.remove();
-        }, 300);
-      }
-
-      deleteTargetItemId = '';
-    } else {
-      alert(data.message || 'Delete failed');
-    }
-  })
-  .catch(err => {
-    console.log(err);
-    alert('Something went wrong');
-  });
-}
-function resetAddItemModal(){
-  document.getElementById('formAction').value = 'addItem';
-  document.getElementById('editItemId').value = '';
-  document.getElementById('existingPhotoUrl').value = '';
-
-  document.getElementById('itemName').value = '';
-  document.getElementById('itemDetails').value = '';
-  document.getElementById('categoryId').value = '';
-  document.getElementById('priceInput').value = '';
-  document.getElementById('itemPhoto').value = '';
-  document.getElementById('pickupLocationId').value = '<?= $defaultLocation ? (string)$defaultLocation['_id'] : '' ?>';
-  document.getElementById('pickupDate').value = '<?= $today ?>';
-
-  const donateInput = document.querySelector('input[name="itemType"][value="donate"]');
-  const sellInput = document.querySelector('input[name="itemType"][value="sell"]');
-  if (donateInput) donateInput.checked = false;
-  if (sellInput) sellInput.checked = false;
-
-  const donateCard = document.getElementById('typeCardDonate');
-  const sellCard = document.getElementById('typeCardSell');
-  if (donateCard) donateCard.classList.remove('active');
-  if (sellCard) sellCard.classList.remove('active');
-
-  pickupTimes = [];
-  renderPickupTimes();
-  priceWrap.style.display = 'none';
-
-  const modalTitle = document.querySelector('#addItemModal h1');
-  if(modalTitle) modalTitle.textContent = 'Add Item';
-
-  const submitBtn = document.querySelector('#addItemForm .add-btn');
-  if(submitBtn) submitBtn.textContent = 'Add Item';
-}
-</script>
-
-<script>
-const itemPhotoInput = document.getElementById('itemPhoto');
-
-form.addEventListener('submit', function(e) {
-    let valid = true;
-
-    const typeChecked = document.querySelector('input[name="itemType"]:checked');
-    if (!typeChecked) {
-        showError('itemTypeError');
-        valid = false;
-    } else {
-        hideError('itemTypeError');
-    }
-
-    if (typeChecked && typeChecked.value === 'sell') {
-        if (!priceInput.value || Number(priceInput.value) <= 0) {
-            showError('priceError');
-            markField(priceInput, true);
-            valid = false;
-        } else {
-            hideError('priceError');
-            markField(priceInput, false);
-        }
-    }
-
-    const itemName = document.getElementById('itemName');
-    if (!itemName.value.trim()) {
-        showError('itemNameError');
-        markField(itemName, true);
-        valid = false;
-    } else {
-        hideError('itemNameError');
-        markField(itemName, false);
-    }
-
-    const itemDetails = document.getElementById('itemDetails');
-    if (!itemDetails.value.trim()) {
-        showError('itemDetailsError');
-        markField(itemDetails, true);
-        valid = false;
-    } else {
-        hideError('itemDetailsError');
-        markField(itemDetails, false);
-    }
-
-    if (!itemPhotoInput.files[0]) {
-        showError('itemPhotoError');
-        markField(itemPhotoInput, true);
-        valid = false;
-    } else {
-        hideError('itemPhotoError');
-        markField(itemPhotoInput, false);
-    }
-
-    const category = document.getElementById('categoryId');
-    if (!category.value) {
-        showError('categoryIdError');
-        markField(category, true);
-        valid = false;
-    } else {
-        hideError('categoryIdError');
-        markField(category, false);
-    }
-
-    if (!valid) {
-        e.preventDefault();
-    }
-});
-</script>
-<script>
-function showMode(mode){
-    const viewMode = document.getElementById('viewMode');
-    const viewItemsHelper = document.getElementById('viewItemsHelper');
-    const quickUpdateHelper = document.getElementById('quickUpdateHelper');
-    const viewItemsBtn = document.getElementById('viewItemsBtn');
-    const quickUpdateBtn = document.getElementById('quickUpdateBtn');
-
-    if (mode === 'view') {
-        viewMode.style.display = 'block';
-        viewItemsHelper.style.display = 'block';
-        quickUpdateHelper.style.display = 'none';
-
-        viewItemsBtn.classList.add('active');
-        quickUpdateBtn.classList.remove('active');
-
-        clearQuickSelection();
-    }
-}
-
-function showQuickHelper(){
-    const viewItemsHelper = document.getElementById('viewItemsHelper');
-    const quickUpdateHelper = document.getElementById('quickUpdateHelper');
-    const viewItemsBtn = document.getElementById('viewItemsBtn');
-    const quickUpdateBtn = document.getElementById('quickUpdateBtn');
-
-    viewItemsHelper.style.display = 'none';
-    quickUpdateHelper.style.display = 'block';
-
-    viewItemsBtn.classList.remove('active');
-    quickUpdateBtn.classList.add('active');
-}
-</script>
-<script>
-function saveQuickUpdate(){
-  const data = {
-  id: document.getElementById('quickItemId').value,
-  quantity: document.getElementById('quickQuantity').value,
-  price: document.getElementById('quickPrice').value,
-  expiryDate: document.getElementById('quickExpiryDate').value,
-  pickupDate: document.getElementById('quickPickupDate').value,
-  pickupLocationId: document.getElementById('quickPickupLocation').value,
-  listingType: document.getElementById('quickType').value
-};
-
-  fetch('quick-update-item.php', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data)
-  })
-  .then(res => res.json())
-  .then(res => {
-    if(res.success){
-      showQuickToast('Updated successfully');
-setTimeout(() => {
-  location.reload();
-}, 900);
-    } else {
-      showQuickToast('Error: ' + res.message);
-    }
-  })
-  .catch(err => {
-    showQuickToast('Something went wrong');
-  });
-}
-</script>
-<script>
-function handleQuickTypeChange(){
-  const type = document.getElementById('quickType').value;
-  const priceInput = document.getElementById('quickPrice');
-
-  if (type === 'donate') {
-    priceInput.disabled = true;
-    priceInput.value = 0;
-  } else {
-    priceInput.disabled = false;
-  }
-}
-</script>
-<script>
-function showQuickToast(message){
-  const toast = document.getElementById('quickToast');
-  toast.textContent = message;
-  toast.style.display = 'block';
-
-  setTimeout(() => {
-    toast.style.display = 'none';
-  }, 2200);
-}
-</script>
-<script>
-document.addEventListener('DOMContentLoaded', function () {
-    const today = new Date().toISOString().split('T')[0];
-
-    // expiry date
-    const expiry = document.getElementById('quickExpiryDate');
-    if (expiry) expiry.setAttribute('min', today);
-
-    // pickup date
-    const pickup = document.getElementById('quickPickupDate');
-    if (pickup) pickup.setAttribute('min', today);
-});
-</script>
-<script>
-let deleteTargetItemId = '';
-
-function deleteItem(itemId, event){
-  event.stopPropagation();
-  deleteTargetItemId = itemId;
-  document.getElementById('deleteModal').style.display = 'flex';
-}
-
-function closeDeleteModal(){
-  deleteTargetItemId = '';
-  document.getElementById('deleteModal').style.display = 'none';
-}
-
-function confirmDeleteItem(){
-  if(!deleteTargetItemId) return;
-
   const formData = new FormData();
   formData.append('formAction', 'deleteItem');
   formData.append('itemId', deleteTargetItemId);
 
-  fetch('', {
-    method: 'POST',
-    body: formData
-  })
-  .then(res => res.json())
-  .then(data => {
-    if(data.success){
-      closeDeleteModal();
-      showQuickToast('Item deleted successfully');
-      setTimeout(() => location.reload(), 700);
-    } else {
-      alert(data.message || 'Delete failed');
-    }
-  })
-  .catch(() => {
-    alert('Something went wrong');
-  });
+  fetch('provider-items.php', { method: 'POST', body: formData })
+    .then(r => {
+      const ct = r.headers.get('content-type') || '';
+      if (!ct.includes('application/json')) throw new Error('Non-JSON response');
+      return r.json();
+    })
+    .then(data => {
+      if (data.success) {
+        closeDeleteModal();
+        showQuickToast('Item deleted successfully');
+        setTimeout(() => location.reload(), 700);
+      } else {
+        alert(data.message || 'Delete failed');
+      }
+    })
+    .catch(err => alert('Something went wrong: ' + err.message));
 }
 
-function clearQuickSelection(){
-    document.querySelectorAll('.quick-item-card').forEach(el => el.classList.remove('selected'));
-
-    const panel = document.getElementById('quickUpdatePanel');
-    if (panel) panel.style.display = 'none';
-
-    const viewItemsHelper = document.getElementById('viewItemsHelper');
-    const quickUpdateHelper = document.getElementById('quickUpdateHelper');
-    const viewItemsBtn = document.getElementById('viewItemsBtn');
-    const quickUpdateBtn = document.getElementById('quickUpdateBtn');
-
-    if (viewItemsHelper) viewItemsHelper.style.display = 'block';
-    if (quickUpdateHelper) quickUpdateHelper.style.display = 'none';
-    if (viewItemsBtn) viewItemsBtn.classList.add('active');
-    if (quickUpdateBtn) quickUpdateBtn.classList.remove('active');
-
-    const quickItemId = document.getElementById('quickItemId');
-    if (quickItemId) quickItemId.value = '';
-}
-</script>
-</script>
-<div id="deleteModal" style="display:none;position:fixed;inset:0;background:rgba(12,22,45,0.5);z-index:9999;justify-content:center;align-items:center;">
-  <div style="background:#fff;border-radius:20px;padding:40px;max-width:420px;width:90%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.2);">
-    <svg width="48" height="48" fill="none" stroke="#c0392b" stroke-width="1.5" viewBox="0 0 24 24" style="margin:0 auto 16px;display:block;">
-      <circle cx="12" cy="12" r="10"/>
-      <line x1="12" y1="8" x2="12" y2="12"/>
-      <line x1="12" y1="16" x2="12.01" y2="16"/>
-    </svg>
-
-    <h3 style="font-size:22px;font-weight:700;color:#1a3a6b;margin-bottom:10px;font-family:'Playfair Display',serif;">
-      Delete Item?
-    </h3>
-
-    <p style="font-size:14px;color:#7a8fa8;margin-bottom:28px;line-height:1.6;">
-      This will permanently delete this item. You cannot undo this.
-    </p>
-
-    <div style="display:flex;gap:14px;justify-content:center;">
-      <button type="button" onclick="closeDeleteModal()" style="padding:12px 28px;border-radius:50px;border:2px solid #c8d8ee;background:#fff;color:#7a8fa8;font-size:15px;font-weight:700;font-family:'Playfair Display',serif;cursor:pointer;">
-        Cancel
-      </button>
-
-      <button type="button" onclick="confirmDeleteItem()" style="padding:12px 28px;border-radius:50px;border:none;background:#c0392b;color:#fff;font-size:15px;font-weight:700;font-family:'Playfair Display',serif;cursor:pointer;">
-        Yes, Delete
-      </button>
-    </div>
-  </div>
-</div>
-<script>
-function selectQuickItem(card){
-    const panel = document.getElementById('quickUpdatePanel');
-
-    // ✅ If same item clicked again → CLOSE
-    if (card.classList.contains('selected')) {
-        clearQuickSelection();
-        return;
-    }
-
-    // otherwise → OPEN normally
-    showQuickHelper();
-
-    document.getElementById('quickItemId').value = card.getAttribute('data-id') || '';
-
-    document.querySelectorAll('.quick-item-card').forEach(el => el.classList.remove('selected'));
-    card.classList.add('selected');
-
-   const today = new Date().toISOString().split('T')[0];
-
-const quantity = card.getAttribute('data-quantity') || '';
-const price = card.getAttribute('data-price') || '';
-let expiry = card.getAttribute('data-expiry') || '';
-let pickupDate = card.getAttribute('data-pickupdate') || '';
-const pickupLocation = card.getAttribute('data-pickuplocation') || '';
-const type = card.getAttribute('data-type') || 'donate';
-
-if (!expiry || expiry.startsWith('1970-')) {
-    expiry = today;
-}
-
-if (!pickupDate || pickupDate.startsWith('1970-')) {
-    pickupDate = today;
-}
-
-document.getElementById('quickQuantity').value = quantity;
-document.getElementById('quickPrice').value = price;
-document.getElementById('quickExpiryDate').value = expiry;
-document.getElementById('quickPickupDate').value = pickupDate;
-document.getElementById('quickPickupLocation').value = pickupLocation;
-document.getElementById('quickType').value = type;
-
-document.getElementById('quickExpiryDate').min = today;
-document.getElementById('quickPickupDate').min = today;
-
-    handleQuickTypeChange();
-
-    card.insertAdjacentElement('afterend', panel);
-    panel.style.display = 'block';
-    panel.scrollIntoView({ behavior: 'smooth', block: 'center' });
-}
-</script>
-<script>
-function clearQuickSelection(){
-    document.querySelectorAll('.quick-item-card').forEach(el => el.classList.remove('selected'));
-
-    const panel = document.getElementById('quickUpdatePanel');
-    if (panel) panel.style.display = 'none';
-
-    const viewItemsHelper = document.getElementById('viewItemsHelper');
-    const quickUpdateHelper = document.getElementById('quickUpdateHelper');
-    const viewItemsBtn = document.getElementById('viewItemsBtn');
-    const quickUpdateBtn = document.getElementById('quickUpdateBtn');
-
-    if (viewItemsHelper) viewItemsHelper.style.display = 'block';
-    if (quickUpdateHelper) quickUpdateHelper.style.display = 'none';
-    if (viewItemsBtn) viewItemsBtn.classList.add('active');
-    if (quickUpdateBtn) quickUpdateBtn.classList.remove('active');
-
-    const quickItemId = document.getElementById('quickItemId');
-    if (quickItemId) quickItemId.value = '';
-}
-</script>
-<script>
-function openEditItemModal(btn, event){
+// ── Edit modal ──
+function openEditItemModal(btn, event) {
   event.stopPropagation();
-
-  // open modal
   document.getElementById('addItemModal').style.display = 'flex';
-
-  // change form mode to edit
-  document.getElementById('formAction').value = 'editItem';
-
-  // fill item data
-  document.getElementById('editItemId').value = btn.dataset.id;
-  document.getElementById('itemName').value = btn.dataset.name;
-  document.getElementById('itemDetails').value = btn.dataset.description;
-  document.getElementById('categoryId').value = btn.dataset.categoryid;
-
-  // type
-  selectTypeCard(btn.dataset.type);
-
-  // price
-  document.getElementById('priceInput').value = btn.dataset.price || '';
-
-  // pickup
+  document.getElementById('formAction').value    = 'editItem';
+  document.getElementById('editItemId').value    = btn.dataset.id;
+  document.getElementById('itemName').value      = btn.dataset.name;
+  document.getElementById('itemDetails').value   = btn.dataset.description;
+  document.getElementById('categoryId').value    = btn.dataset.categoryid;
+  document.getElementById('priceInput').value    = btn.dataset.price || '';
   document.getElementById('pickupLocationId').value = btn.dataset.pickuplocation || '';
-  document.getElementById('pickupDate').value = btn.dataset.pickupdate || '';
-
-  // photo
+  document.getElementById('pickupDate').value    = btn.dataset.pickupdate || '';
   document.getElementById('existingPhotoUrl').value = btn.dataset.photo || '';
-
-  // change button text
+  selectTypeCard(btn.dataset.type);
   document.querySelector('#addItemForm .add-btn').textContent = 'Update Item';
-
-  // change title
   document.querySelector('#addItemModal h1').textContent = 'Edit Item';
 }
- <script>
-  mobileDebounceTimer = setTimeout(() => {
-    fetch(`../../back-end/search.php?q=${encodeURIComponent(q)}`)
-      .then(r => r.json())
-      .then(data => {
-        const items  = data.items  || [];
-        const orders = data.orders || [];
 
-        if (!items.length && !orders.length) {
-          mobileDD.innerHTML = '<div class="sd-empty">No results found.</div>';
-          return;
-        }
+function resetAddItemModal() {
+  document.getElementById('formAction').value    = 'addItem';
+  document.getElementById('editItemId').value    = '';
+  document.getElementById('existingPhotoUrl').value = '';
+  document.getElementById('itemName').value      = '';
+  document.getElementById('itemDetails').value   = '';
+  document.getElementById('categoryId').value    = '';
+  document.getElementById('priceInput').value    = '';
+  document.getElementById('itemPhoto').value     = '';
+  document.getElementById('pickupLocationId').value = '<?= $defaultLocation ? (string)$defaultLocation['_id'] : '' ?>';
+  document.getElementById('pickupDate').value    = '<?= $today ?>';
+  const di = document.querySelector('input[name="itemType"][value="donate"]');
+  const si = document.querySelector('input[name="itemType"][value="sell"]');
+  if (di) di.checked = false;
+  if (si) si.checked = false;
+  document.getElementById('typeCardDonate')?.classList.remove('active');
+  document.getElementById('typeCardSell')?.classList.remove('active');
+  pickupTimes = [];
+  renderPickupTimes();
+  priceWrap.style.display = 'none';
+  document.querySelector('#addItemModal h1').textContent = 'Add Item';
+  document.querySelector('#addItemForm .add-btn').textContent = 'Add Item';
+}
 
-        let html = '';
-       if (items.length) {
-  html += `<div class="sd-section-title">Items</div>`;
+// ── Toast ──
+function showQuickToast(message) {
+  const toast = document.getElementById('quickToast');
+  toast.textContent    = message;
+  toast.style.display  = 'block';
+  setTimeout(() => { toast.style.display = 'none'; }, 2200);
+}
 
-  items.forEach(item => {
-    const thumb = item.photoUrl
-      ? `<img src="${esc(item.photoUrl)}" alt="">`
-      : `<svg width="20" height="20" fill="none" stroke="#c8d8ee" stroke-width="1.5" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3"/></svg>`;
+// ── Navbar search ──
+(function () {
+  const input    = document.getElementById('navSearchInput');
+  const dropdown = document.getElementById('navSearchDropdown');
+  if (!input || !dropdown) return;
 
-    const badgeClass = item.listingType === 'donate'
-      ? 'sd-badge-donate'
-      : 'sd-badge-sell';
+  let timer;
 
-    const badgeLabel = item.listingType === 'donate'
-      ? 'Donation'
-      : 'Sell';
-
-    const priceText = item.listingType === 'donate' || !item.price || item.price == 0
-      ? 'Free'
-      : `﷼ ${esc(item.price)}`;
-
-    html += `
-      <a class="sd-row" href="provider-item-details.php?id=${esc(item.id)}">
-        <div class="sd-thumb">${thumb}</div>
-
-        <div class="sd-info">
-          <div class="sd-name">${esc(item.name)}</div>
-          <div class="sd-sub">${priceText}</div>
-        </div>
-
-        <span class="sd-badge ${badgeClass}">${badgeLabel}</span>
-      </a>
-    `;
+  input.addEventListener('input', function () {
+    clearTimeout(timer);
+    const q = this.value.trim();
+    if (q.length < 2) { dropdown.style.display = 'none'; return; }
+    timer = setTimeout(() => fetchSearch(q), 280);
   });
-}
 
-              </div>
-              <span class="sd-badge ${badgeClass}">${badgeLabel}</span>
-            </a>`;
-          });
-        }
-        if (orders.length) {
-          html += `<div class="sd-section-title">Orders</div>`;
-          orders.forEach(order => {
-            const badgeClass = `sd-badge-${order.status}`;
-            const statusLabel = order.status.charAt(0).toUpperCase() + order.status.slice(1);
-            html += `<a class="sd-row" href="provider-orders.php">
-              <div class="sd-thumb">
-                <svg width="20" height="20" fill="none" stroke="#2255a4" stroke-width="1.5" viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/></svg>
-              </div>
-              <div class="sd-info">
-                <div class="sd-name">Order #${esc(order.orderNumber)}</div>
-                <div class="sd-sub">${order.itemName ? esc(order.itemName) + ' · ' : ''}﷼ ${esc(order.total)}</div>
-              </div>
-              <span class="sd-badge ${badgeClass}">${statusLabel}</span>
-            </a>`;
-          });
-        }
-        mobileDD.innerHTML = html;
-      })
-      .catch(() => {
-        mobileDD.innerHTML = '<div class="sd-empty">Something went wrong.</div>';
-      });
-  }, 300);
-});
+  input.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') { dropdown.style.display = 'none'; this.value = ''; }
+  });
 
-// Close mobile dropdown on outside click
-document.addEventListener('click', (e) => {
-  if (!document.getElementById('searchWrap')?.contains(e.target)) closeDropdown();
-  const mobileSearch = document.querySelector('.mobile-search');
-  const mobileDD = document.getElementById('mobileSearchDropdown');
-  if (mobileSearch && !mobileSearch.contains(e.target)) {
-    mobileDD?.classList.remove('visible');
-  }
-});
-</script>
-<script>
-function toggleMobileMenu() {
-  const menu = document.getElementById('mobileMenu');
-  const btn = document.getElementById('hamburger');
-
-  menu.classList.toggle('open');
-  btn.classList.toggle('open');
-  document.body.style.overflow = menu.classList.contains('open') ? 'hidden' : '';
-}
-
-function closeMobileMenu() {
-  document.getElementById('mobileMenu').classList.remove('open');
-  document.getElementById('hamburger').classList.remove('open');
-  document.body.style.overflow = '';
-}
-</script>
-<script>
-function toggleMobileMenu() {
-  const menu = document.getElementById('mobileMenu');
-  const btn = document.getElementById('hamburger');
-  menu.classList.toggle('open');
-  btn.classList.toggle('open');
-  document.body.style.overflow = menu.classList.contains('open') ? 'hidden' : '';
-}
-
-function closeMobileMenu() {
-  document.getElementById('mobileMenu').classList.remove('open');
-  document.getElementById('hamburger').classList.remove('open');
-  document.body.style.overflow = '';
-}
-
-let mobileDebounceTimer = null;
-
-document.getElementById('mobileSearchInput')?.addEventListener('input', function () {
-  clearTimeout(mobileDebounceTimer);
-  const q = this.value.trim();
-  const mobileDD = document.getElementById('mobileSearchDropdown');
-
-  if (!mobileDD) return;
-
-  if (q.length < 2) {
-    mobileDD.classList.remove('visible');
-    mobileDD.innerHTML = '';
-    return;
-  }
-
-  mobileDD.innerHTML = '<div style="padding:14px;text-align:center;color:#8a9ab5;font-size:13px;">Searching...</div>';
-  mobileDD.classList.add('visible');
-
-  mobileDebounceTimer = setTimeout(() => {
-    fetch(`../../back-end/search.php?q=${encodeURIComponent(q)}`)
-      .then(r => r.json())
-      .then(data => {
-        const items = data.items || [];
-        const providers = data.providers || [];
-
-        if (!items.length && !providers.length) {
-          mobileDD.innerHTML = '<div style="padding:14px;text-align:center;color:#8a9ab5;font-size:13px;">No matches found</div>';
-          mobileDD.classList.add('visible');
-          return;
-        }
-
-        let html = '';
-
-        if (providers.length) {
-          html += '<div class="sd-section-title">Providers</div>';
-          providers.forEach(p => {
-            const logo = p.businessLogo
-              ? `<div class="sd-icon"><img src="${p.businessLogo}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:10px;"></div>`
-              : `<div class="sd-icon">${(p.businessName || 'P').charAt(0).toUpperCase()}</div>`;
-
-            html += `
-              <a class="sd-row" href="provider-dashboard.php" onclick="closeMobileMenu()">
-                ${logo}
-                <div class="sd-info">
-                  <div class="sd-name">${p.businessName || ''}</div>
-                  <div class="sd-sub">${p.category || ''}</div>
-                </div>
-              </a>
-            `;
-          });
-        }
-
-        if (items.length) {
-          html += '<div class="sd-section-title">Products</div>';
-          items.forEach(item => {
-            const thumb = item.photoUrl
-              ? `<div class="sd-icon"><img src="${item.photoUrl}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:10px;"></div>`
-              : '<div class="sd-icon">🍱</div>';
-
-            html += `
-              <a class="sd-row" href="provider-items.php" onclick="closeMobileMenu()">
-                ${thumb}
-                <div class="sd-info">
-                  <div class="sd-name">${item.name || ''}</div>
-                  <div class="sd-sub">Product</div>
-                </div>
-              </a>
-            `;
-          });
-        }
-
-        mobileDD.innerHTML = html;
-        mobileDD.classList.add('visible');
-      })
-      .catch(() => {
-        mobileDD.innerHTML = '<div style="padding:14px;text-align:center;color:#8a9ab5;font-size:13px;">Search unavailable</div>';
-        mobileDD.classList.add('visible');
-      });
-  }, 220);
-});
-
-const searchInput = document.getElementById('searchInput');
-const searchDropdown = document.getElementById('searchDropdown');
-const searchWrap = document.getElementById('searchWrap');
-let searchTimer = null;
-
-searchInput?.addEventListener('input', function () {
-  clearTimeout(searchTimer);
-  const q = this.value.trim();
-
-  if (q.length < 2) {
-    searchDropdown?.classList.remove('visible');
-    if (searchDropdown) searchDropdown.innerHTML = '';
-    return;
-  }
-
-  searchDropdown.innerHTML = '<div style="padding:14px;text-align:center;color:#8a9ab5;font-size:13px;">Searching...</div>';
-  searchDropdown.classList.add('visible');
-
-  searchTimer = setTimeout(async () => {
-    try {
-      const res = await fetch(`../../back-end/search.php?q=${encodeURIComponent(q)}`);
-      const data = await res.json();
-
-      const items = data.items || [];
-      const providers = data.providers || [];
-      let html = '';
-
-      if (!items.length && !providers.length) {
-        html = '<div style="padding:14px;text-align:center;color:#8a9ab5;font-size:13px;">No matches found</div>';
-      } else {
-        if (providers.length) {
-          html += '<div class="sd-section-title">Providers</div>';
-          providers.forEach(p => {
-            const logo = p.businessLogo
-              ? `<div class="sd-icon"><img src="${p.businessLogo}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:10px;"></div>`
-              : `<div class="sd-icon">${(p.businessName || 'P').charAt(0).toUpperCase()}</div>`;
-
-            html += `
-              <a class="sd-row" href="provider-dashboard.php">
-                ${logo}
-                <div class="sd-info">
-                  <div class="sd-name">${p.businessName || ''}</div>
-                  <div class="sd-sub">${p.category || ''}</div>
-                </div>
-              </a>
-            `;
-          });
-        }
-
-        if (items.length) {
-          html += '<div class="sd-section-title">Products</div>';
-          items.forEach(item => {
-            const thumb = item.photoUrl
-              ? `<div class="sd-icon"><img src="${item.photoUrl}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:10px;"></div>`
-              : '<div class="sd-icon">🍱</div>';
-
-            html += `
-              <a class="sd-row" href="provider-items.php">
-                ${thumb}
-                <div class="sd-info">
-                  <div class="sd-name">${item.name || ''}</div>
-                  <div class="sd-sub">Product</div>
-                </div>
-              </a>
-            `;
-          });
-        }
-      }
-
-      searchDropdown.innerHTML = html;
-      searchDropdown.classList.add('visible');
-    } catch (e) {
-      searchDropdown.innerHTML = '<div style="padding:14px;text-align:center;color:#8a9ab5;font-size:13px;">Something went wrong.</div>';
-      searchDropdown.classList.add('visible');
+  document.addEventListener('click', function (e) {
+    if (!input.contains(e.target) && !dropdown.contains(e.target)) {
+      dropdown.style.display = 'none';
     }
-  }, 280);
-});
+  });
 
-searchInput?.addEventListener('keydown', e => {
-  if (e.key === 'Escape') searchDropdown?.classList.remove('visible');
-});
-
-document.addEventListener('click', e => {
-  if (searchWrap && !searchWrap.contains(e.target)) {
-    searchDropdown?.classList.remove('visible');
+  function fetchSearch(q) {
+    fetch('../../back-end/provider-search.php?q=' + encodeURIComponent(q))
+      .then(r => r.json())
+      .then(data => renderDrop(data.items || []))
+      .catch(() => { dropdown.style.display = 'none'; });
   }
 
-  const mobileMenu = document.getElementById('mobileMenu');
-  const mobileSearchInput = document.getElementById('mobileSearchInput');
-  const mobileSearchDropdown = document.getElementById('mobileSearchDropdown');
+  function renderDrop(items) {
+    if (!items.length) {
+      dropdown.innerHTML = '<div class="search-drop-empty">No items found</div>';
+      dropdown.style.display = 'block';
+      return;
+    }
 
-  if (
-    mobileMenu &&
-    mobileSearchDropdown &&
-    mobileMenu.classList.contains('open') &&
-    !mobileSearchInput?.contains(e.target) &&
-    !mobileSearchDropdown.contains(e.target)
-  ) {
-    mobileSearchDropdown.classList.remove('visible');
+    let html = '<div class="search-drop-section">Items</div>';
+    items.forEach(item => {
+      const thumb = item.photoUrl
+        ? `<img class="search-drop-thumb" src="${esc(item.photoUrl)}" onerror="this.style.display='none'">`
+        : `<div class="search-drop-thumb-placeholder">📦</div>`;
+      const badge = item.available
+        ? '<span style="color:#16a34a;font-size:11px;font-weight:700;">● In stock</span>'
+        : '<span style="color:#dc2626;font-size:11px;font-weight:700;">● Out</span>';
+
+      html += `
+        <div class="search-drop-item" onclick="highlightItem('${esc(item.id)}')">
+          ${thumb}
+          <div style="flex:1;min-width:0;">
+            <div class="search-drop-name">${esc(item.name)}</div>
+            <div class="search-drop-sub">${badge}</div>
+          </div>
+          <div class="search-drop-badge">${esc(item.price)}</div>
+        </div>`;
+    });
+
+    dropdown.innerHTML = html;
+    dropdown.style.display = 'block';
   }
+
+  function esc(str) {
+    return String(str ?? '')
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+      .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  // scroll to and highlight the matching card on the page
+  window.highlightItem = function (id) {
+    dropdown.style.display = 'none';
+    input.value = '';
+    const card = document.querySelector(`.quick-item-card[data-id="${id}"]`);
+    if (!card) return;
+    card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    card.style.transition = 'box-shadow .25s, border-color .25s';
+    card.style.boxShadow  = '0 0 0 4px rgba(234,139,44,0.45)';
+    card.style.borderColor = '#ea8b2c';
+    setTimeout(() => {
+      card.style.boxShadow  = '';
+      card.style.borderColor = '';
+    }, 1800);
+  };
+})();
+
+// ── Init ──
+document.addEventListener('DOMContentLoaded', function () {
+  initTypeCards();
+  renderPickupTimes();
+  const today = new Date().toISOString().split('T')[0];
+  document.getElementById('quickExpiryDate')?.setAttribute('min', today);
+  document.getElementById('quickPickupDate')?.setAttribute('min', today);
 });
 </script>
+<div id="quickToast" style="display:none;position:fixed;bottom:24px;right:24px;background:#183482;color:#fff;padding:14px 22px;border-radius:14px;box-shadow:0 10px 24px rgba(0,0,0,0.18);z-index:99999;font-size:15px;font-family:'Playfair Display',serif;font-weight:600;"></div>
 </body>
 </html>
-  

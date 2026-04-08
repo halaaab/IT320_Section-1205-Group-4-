@@ -564,14 +564,13 @@ function timeAgo($utcDate): string {
   </div>
 </nav>
 <div class="mobile-menu" id="mobileMenu">
-<div class="mobile-search">
-  <svg width="18" height="18" fill="none" stroke="#fff" stroke-width="2" viewBox="0 0 24 24">
-    <circle cx="11" cy="11" r="7"></circle>
-    <path d="m21 21-4.3-4.3"></path>
-  </svg>
-  <input type="text" id="mobileSearchInput" placeholder="Search items ..." />
-  <div class="search-dropdown" id="mobileSearchDropdown"></div>  <!-- ADD THIS -->
-</div>
+    <div class="mobile-search">
+    <svg width="18" height="18" fill="none" stroke="#fff" stroke-width="2" viewBox="0 0 24 24">
+      <circle cx="11" cy="11" r="7"></circle>
+      <path d="m21 21-4.3-4.3"></path>
+    </svg>
+    <input type="text" id="mobileSearchInput" placeholder="Search items ..." />
+  </div>
   <a href="provider-dashboard.php" onclick="closeMobileMenu()">Dashboard</a>
   <a href="provider-items.php" onclick="closeMobileMenu()">Items</a>
   <a href="provider-orders.php" onclick="closeMobileMenu()">Orders</a>
@@ -909,101 +908,6 @@ document.getElementById('mobileSearchInput')?.addEventListener('input', function
   if (desktopSearch) {
     desktopSearch.value = this.value;
     desktopSearch.dispatchEvent(new Event('input'));
-  }
-});
-function toggleMobileMenu() {
-  const menu = document.getElementById('mobileMenu');
-  const btn = document.getElementById('hamburger');
-  menu.classList.toggle('open');
-  btn.classList.toggle('open');
-  document.body.style.overflow = menu.classList.contains('open') ? 'hidden' : '';
-}
-
-function closeMobileMenu() {
-  document.getElementById('mobileMenu').classList.remove('open');
-  document.getElementById('hamburger').classList.remove('open');
-  document.body.style.overflow = '';
-}
-
-let mobileDebounceTimer = null;
-
-document.getElementById('mobileSearchInput')?.addEventListener('input', function () {
-  clearTimeout(mobileDebounceTimer);
-  const q = this.value.trim();
-  const mobileDD = document.getElementById('mobileSearchDropdown');
-
-  if (q.length < 2) {
-    mobileDD.classList.remove('visible');
-    mobileDD.innerHTML = '';
-    return;
-  }
-
-  mobileDD.innerHTML = '<div class="sd-loading">Searching...</div>';
-  mobileDD.classList.add('visible');
-
-  mobileDebounceTimer = setTimeout(() => {
-    fetch(`../../back-end/provider-search.php?q=${encodeURIComponent(q)}`)
-      .then(r => r.json())
-      .then(data => {
-        const items  = data.items  || [];
-        const orders = data.orders || [];
-
-        if (!items.length && !orders.length) {
-          mobileDD.innerHTML = '<div class="sd-empty">No results found.</div>';
-          return;
-        }
-
-        let html = '';
-        if (items.length) {
-          html += `<div class="sd-section-title">Items</div>`;
-          items.forEach(item => {
-            const thumb = item.photoUrl
-              ? `<img src="${esc(item.photoUrl)}" alt="">`
-              : `<svg width="20" height="20" fill="none" stroke="#c8d8ee" stroke-width="1.5" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3"/></svg>`;
-            const badgeClass = item.listingType === 'donate' ? 'sd-badge-donate' : 'sd-badge-sell';
-            const badgeLabel = item.listingType === 'donate' ? 'Donation' : 'Selling';
-            html += `<a class="sd-row" href="provider-item-details.php?id=${esc(item.id)}">
-              <div class="sd-thumb">${thumb}</div>
-              <div class="sd-info">
-                <div class="sd-name">${esc(item.name)}</div>
-                <div class="sd-sub">${esc(item.price)}</div>
-              </div>
-              <span class="sd-badge ${badgeClass}">${badgeLabel}</span>
-            </a>`;
-          });
-        }
-        if (orders.length) {
-          html += `<div class="sd-section-title">Orders</div>`;
-          orders.forEach(order => {
-            const badgeClass = `sd-badge-${order.status}`;
-            const statusLabel = order.status.charAt(0).toUpperCase() + order.status.slice(1);
-            html += `<a class="sd-row" href="provider-orders.php">
-              <div class="sd-thumb">
-                <svg width="20" height="20" fill="none" stroke="#2255a4" stroke-width="1.5" viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/></svg>
-              </div>
-              <div class="sd-info">
-                <div class="sd-name">Order #${esc(order.orderNumber)}</div>
-                <div class="sd-sub">${order.itemName ? esc(order.itemName) + ' · ' : ''}﷼ ${esc(order.total)}</div>
-              </div>
-              <span class="sd-badge ${badgeClass}">${statusLabel}</span>
-            </a>`;
-          });
-        }
-        mobileDD.innerHTML = html;
-      })
-      .catch(() => {
-        mobileDD.innerHTML = '<div class="sd-empty">Something went wrong.</div>';
-      });
-  }, 300);
-});
-
-// Close mobile dropdown on outside click
-document.addEventListener('click', (e) => {
-  if (!document.getElementById('searchWrap')?.contains(e.target)) closeDropdown();
-  const mobileSearch = document.querySelector('.mobile-search');
-  const mobileDD = document.getElementById('mobileSearchDropdown');
-  if (mobileSearch && !mobileSearch.contains(e.target)) {
-    mobileDD?.classList.remove('visible');
   }
 });
 </script>

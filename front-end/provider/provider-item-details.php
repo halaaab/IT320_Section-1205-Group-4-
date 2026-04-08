@@ -198,10 +198,10 @@ exit;
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  <!-- style -->
   <title>RePlate – Edit Item</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
   <style>
-  
   * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: 'Playfair Display', serif; background: #f4f7fc; min-height: 100vh; display: flex; flex-direction: column; }
 
@@ -653,7 +653,6 @@ height: 100%;
 <body>
   <nav class="navbar">
     <div class="nav-left">
-    <button class="mobile-menu-btn" onclick="toggleSidebar()">☰</button>
       <img class="nav-logo" src="../../images/Replate-white.png" alt="RePlate"/>
     </div>
     <div class="nav-right">
@@ -714,7 +713,6 @@ height: 100%;
         </div>
       </div>
     </aside>
-    <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
      <main class="main">
    <form method="POST" action="provider-item-details.php?id=<?= htmlspecialchars((string)$item['_id']) ?>" id="itemEditForm" enctype="multipart/form-data">
     <div class="card-wrapper">
@@ -1082,12 +1080,7 @@ document.getElementById('pickupLocationId')?.addEventListener('change', function
     }
 });
 </script>
-<script>
-function toggleSidebar() {
-  document.querySelector('.sidebar').classList.toggle('show');
-  document.getElementById('sidebarOverlay').classList.toggle('show');
-}
-</script>
+
 </body>
 </html>
   

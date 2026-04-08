@@ -6,7 +6,6 @@ require_once '../../back-end/models/BaseModel.php';
 require_once '../../back-end/models/Provider.php';
 require_once '../../back-end/models/Order.php';
 require_once '../../back-end/models/OrderItem.php';
-require_once '../../back-end/models/Item.php';
 
 if (empty($_SESSION['providerId'])) {
 header('Location: ../shared/login.php');
@@ -28,8 +27,6 @@ if (!in_array($tab, ['pending', 'completed'], true)) {
 $providerModel = new Provider();
 $orderModel = new Order();
 $orderItemModel = new OrderItem();
-$itemModel = new Item();
-$providerItemsForSearch = $itemModel->getByProvider($providerId);
 
 $provider = $providerModel->findById($providerId);
 
@@ -138,7 +135,6 @@ usort($ordersToShow, function ($a, $b) {
 <html lang="en">
 <head>
   <title>RePlate – Provider Orders</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: 'Playfair Display', serif; background: #f4f7fc; min-height: 100vh; display: flex; flex-direction: column; }
@@ -505,442 +501,33 @@ margin-left: auto;
 .page-header h1 span {
   -webkit-text-fill-color: transparent;
 }
-/* ── MOBILE HEADER / HAMBURGER ── */
-.hamburger {
-  display: none;
-  flex-direction: column;
-  gap: 5px;
-  cursor: pointer;
-  background: none;
-  border: none;
-  padding: 6px;
-}
-
-.hamburger span {
-  display: block;
-  width: 24px;
-  height: 2.5px;
-  background: #fff;
-  border-radius: 2px;
-  transition: all 0.3s;
-}
-
-.hamburger.open span:nth-child(1) {
-  transform: translateY(7.5px) rotate(45deg);
-}
-
-.hamburger.open span:nth-child(2) {
-  opacity: 0;
-}
-
-.hamburger.open span:nth-child(3) {
-  transform: translateY(-7.5px) rotate(-45deg);
-}
-
-.mobile-menu {
-  display: none;
-  position: fixed;
-  inset: 0;
-  top: 72px;
-  background: linear-gradient(180deg, #1a3a6b 0%, #2255a4 100%);
-  z-index: 99;
-  flex-direction: column;
-  padding: 24px 20px;
-}
-
-.mobile-menu.open {
-  display: flex;
-}
-
-.mobile-menu a {
-  color: rgba(255,255,255,0.9);
-  font-size: 22px;
-  font-weight: 700;
-  padding: 18px 0;
-  border-bottom: 1px solid rgba(255,255,255,0.12);
-  text-decoration: none;
-}
-
-.mobile-search {
-  margin-top: 22px;
-  position: relative;
-}
-
-.mobile-search svg {
-  position: absolute;
-  left: 14px;
-  top: 50%;
-  transform: translateY(-50%);
-  opacity: 0.6;
-  pointer-events: none;
-}
-
-.mobile-search input {
-  width: 100%;
-  background: rgba(255,255,255,0.15);
-  border: 1.5px solid rgba(255,255,255,0.4);
-  border-radius: 50px;
-  padding: 12px 16px 12px 40px;
-  color: #fff;
-  outline: none;
-  font-family: 'Playfair Display', serif;
-}
-
-.mobile-search input::placeholder {
-  color: rgba(255,255,255,0.6);
-}
-.search-dropdown {
-  display: none;
-  position: absolute;
-  top: calc(100% + 10px);
-  left: 0;
-  width: 360px;
-  max-width: calc(100vw - 40px);
-  background: #fff;
-  border-radius: 18px;
-  border: 1.5px solid #e0eaf5;
-  box-shadow: 0 12px 40px rgba(26,58,107,0.18);
-  z-index: 9999;
-  overflow: hidden;
-}
-
-.search-dropdown.visible {
-  display: block;
-}
-
-.sd-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 16px;
-  text-decoration: none;
-  color: inherit;
-  transition: background 0.15s;
-}
-
-.sd-row:hover {
-  background: #f4f8ff;
-}
-
-.sd-icon {
-  width: 38px;
-  height: 38px;
-  border-radius: 10px;
-  background: #edf3fb;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #1a3a6b;
-  flex-shrink: 0;
-}
-
-.sd-info {
-  min-width: 0;
-}
-
-.sd-name {
-  font-size: 14px;
-  font-weight: 700;
-  color: #1a3a6b;
-}
-
-.sd-sub {
-  font-size: 12px;
-  color: #7a8fa8;
-  margin-top: 2px;
-}
-
-.mobile-search {
-  position: relative;
-}
-
-.mobile-search .search-dropdown {
-  top: calc(100% + 12px);
-  left: 0;
-  width: 100%;
-}
-.sd-section-title {
-  font-size: 13px;
-  font-weight: 700;
-  color: #183482;
-  padding: 12px 16px 6px;
-  background: #fff;
-}
-
-.search-dropdown {
-  width: 405px;
-  border-radius: 20px;
-  overflow: hidden;
-}
-
-.sd-row {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 14px 16px;
-}
-
-.sd-icon {
-  width: 48px;
-  height: 48px;
-  border-radius: 14px;
-  overflow: hidden;
-  flex-shrink: 0;
-  background: #edf3fb;
-}
-
-.sd-icon img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  border-radius: 14px;
-}
-
-.sd-info {
-  min-width: 0;
-  flex: 1;
-}
-
-.sd-name {
-  font-size: 16px;
-  font-weight: 700;
-  color: #183482;
-  line-height: 1.2;
-  margin-bottom: 2px;
-}
-
-.sd-sub {
-  font-size: 13px;
-  color: #7a8fa8;
-  line-height: 1.3;
-}
-.sd-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 88px;
-  padding: 6px 12px;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 700;
-  flex-shrink: 0;
-}
-
-.sd-badge.donation {
-  background: #dff3e8;
-  color: #2f8f57;
-}
-
-.sd-badge.sell {
-  background: #fff3e4;
-  color: #e48a2a;
-}
-@media (max-width: 768px) {
-  .hamburger {
-    display: flex;
-  }
-
-  .sidebar {
-    display: none;
-  }
-
-  .page-body {
-    display: block;
-  }
-
-  .nav-search-wrap {
-    display: none;
-  }
-
-  .nav-provider-text {
-    display: none;
-  }
-
-  nav.navbar {
-    padding: 0 16px;
-  }
-
-  .nav-logo {
-    height: 70px;
-  }
-
-  .main-content {
-    width: 100%;
-    padding: 20px 16px;
-    margin: 0;
-    align-items: stretch;
-  }
-
-  .orders-page-wrap {
-    width: 100%;
-    max-width: 100%;
-  }
-
-  .tabs-row {
-    display: flex;
-    gap: 8px;
-    width: 100%;
-  }
-
-  .tab-btn {
-    flex: 1;
-    min-width: 0;
-    width: auto;
-    padding: 10px 8px;
-    font-size: 14px;
-  }
-
-  .orders-list {
-    width: 100%;
-    max-width: 100%;
-    padding: 16px;
-    gap: 16px;
-  }
-
-  .order-top,
-  .order-left-block,
-  .order-bottom {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
-  .order-item-img,
-  .order-placeholder {
-    width: 82px;
-    height: 82px;
-  }
-
-  .order-price,
-  .donation-text {
-    margin-left: 0;
-  }
-
-  .view-order-btn {
-    margin-right: 0;
-  }
-  .mobile-search .search-dropdown {
-  top: calc(100% + 8px);
-  width: 100%;
-  max-width: 100%;
-  border-radius: 16px;
-}
-
-.mobile-search .sd-row {
-  padding: 10px 12px;
-  gap: 10px;
-}
-
-.mobile-search .sd-icon {
-  width: 42px;
-  height: 42px;
-  border-radius: 12px;
-}
-
-.mobile-search .sd-icon img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  border-radius: 12px;
-}
-
-.mobile-search .sd-info {
-  min-width: 0;
-  flex: 1;
-}
-
-.mobile-search .sd-name {
-  font-size: 15px;
-  font-weight: 700;
-  line-height: 1.2;
-  color: #183482;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.mobile-search .sd-sub {
-  font-size: 13px;
-  line-height: 1.2;
-  margin-top: 3px;
-}
-
-.mobile-search .sd-section-title {
-  font-size: 12px;
-  padding: 10px 12px 6px;
-}
-.mobile-search .sd-badge {
-  min-width: 78px;
-  padding: 5px 10px;
-  font-size: 11px;
-}
-}
 </style>
 </head>
 <body>
-<nav class="navbar">
-  <div class="nav-left">
-    <img class="nav-logo" src="../../images/Replate-white.png" alt="RePlate"/>
-  </div>
-
-  <div class="nav-right">
-    <div class="nav-search-wrap" id="searchWrap">
-      <svg width="16" height="16" fill="none" stroke="#fff" stroke-width="2" viewBox="0 0 24 24">
-        <circle cx="11" cy="11" r="8"/>
-        <path d="M21 21l-4.35-4.35"/>
-      </svg>
-      <input
-        type="text"
-        id="searchInput"
-        placeholder="Search orders..."
-        autocomplete="off"
-      />
-      <div class="search-dropdown" id="searchDropdown"></div>
-    </div>
-
-    <div class="nav-provider-info">
-      <div class="nav-provider-logo">
-        <?php if ($providerLogo): ?>
-          <img src="<?= htmlspecialchars($providerLogo) ?>" alt="<?= htmlspecialchars($providerName) ?>"/>
-        <?php else: ?>
-          <?= mb_strtoupper(mb_substr($providerName, 0, 1)) ?>
-        <?php endif; ?>
-      </div>
-      <div class="nav-provider-text">
-        <span class="nav-provider-name"><?= htmlspecialchars($providerName) ?></span>
-        <span class="nav-provider-email"><?= htmlspecialchars($providerEmail) ?></span>
-      </div>
-    </div>
-
-    <button id="hamburger" class="hamburger" onclick="toggleMobileMenu()" aria-label="Open menu">
-      <span></span>
-      <span></span>
-      <span></span>
-    </button>
-  </div>
-</nav>
-
-<div class="mobile-menu" id="mobileMenu">
-  <div class="mobile-search">
-    <svg width="18" height="18" fill="none" stroke="#fff" stroke-width="2" viewBox="0 0 24 24">
-      <circle cx="11" cy="11" r="7"></circle>
-      <path d="m21 21-4.3-4.3"></path>
-    </svg>
-    <input
-      type="text"
-      id="mobileSearchInput"
-      placeholder="Search orders..."
-      autocomplete="off"
-    />
-    <div class="search-dropdown" id="mobileSearchDropdown"></div>
-  </div>
-
-  <a href="provider-dashboard.php" onclick="closeMobileMenu()">Dashboard</a>
-  <a href="provider-items.php" onclick="closeMobileMenu()">Items</a>
-  <a href="provider-orders.php" onclick="closeMobileMenu()">Orders</a>
-  <a href="provider-profile.php" onclick="closeMobileMenu()">Profile</a>
-  <a href="provider-dashboard.php?logout=1" onclick="closeMobileMenu()">Log out</a>
+  <nav class="navbar">
+<div class="nav-left">
+<img class="nav-logo" src="../../images/Replate-white.png" alt="RePlate"/>
 </div>
-
+<div class="nav-right">
+<div class="nav-search-wrap">
+<svg width="16" height="16" fill="none" stroke="#fff" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+<input type="text" placeholder="Search......"/>
+</div>
+<div class="nav-provider-info">
+<div class="nav-provider-logo">
+<?php if ($providerLogo): ?>
+<img src="<?= htmlspecialchars($providerLogo) ?>" alt="<?= htmlspecialchars($providerName) ?>"/>
+<?php else: ?>
+<?= mb_strtoupper(mb_substr($providerName, 0, 1)) ?>
+<?php endif; ?>
+</div>
+<div class="nav-provider-text">
+<span class="nav-provider-name"><?= htmlspecialchars($providerName) ?></span>
+<span class="nav-provider-email"><?= htmlspecialchars($providerEmail) ?></span>
+</div>
+</div>
+</div>
+</nav>
 <div class="page-body">
 <aside class="sidebar">
 <p class="sidebar-welcome">Welcome Back ,</p>
@@ -1093,131 +680,8 @@ Profile
 
 </div>
 
-<script>
-function toggleMobileMenu() {
-  const menu = document.getElementById('mobileMenu');
-  const btn = document.getElementById('hamburger');
-  menu.classList.toggle('open');
-  btn.classList.toggle('open');
-  document.body.style.overflow = menu.classList.contains('open') ? 'hidden' : '';
-}
 
-function closeMobileMenu() {
-  document.getElementById('mobileMenu').classList.remove('open');
-  document.getElementById('hamburger').classList.remove('open');
-  document.body.style.overflow = '';
-}
-</script>
-<script>
-const itemSearchData = <?= json_encode(array_map(function($item) {
-  return [
-    'id' => (string)($item['_id'] ?? ''),
-    'name' => $item['itemName'] ?? 'Item',
-    'photoUrl' => $item['photoUrl'] ?? '',
-    'listingType' => strtolower($item['listingType'] ?? ''),
-    'price' => (float)($item['price'] ?? 0),
-  ];
-}, $providerItemsForSearch), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
 
-function renderItemResults(results, dropdownId, isMobile = false) {
-  const dropdown = document.getElementById(dropdownId);
-  if (!dropdown) return;
-
-  if (!results.length) {
-    dropdown.innerHTML = '<div style="padding:14px;text-align:center;color:#8a9ab5;font-size:13px;">No matches found</div>';
-    dropdown.classList.add('visible');
-    return;
-  }
-
-  let html = '<div class="sd-section-title">Items</div>';
-
-  results.forEach(item => {
-    const thumb = item.photoUrl
-      ? `<div class="sd-icon"><img src="${item.photoUrl}" alt=""></div>`
-      : '<div class="sd-icon">🍱</div>';
-
-    const priceText = item.listingType === 'donate' || item.price <= 0
-      ? 'Free'
-      : `${Number(item.price).toFixed(2)} SAR`;
-
-    const badgeText = item.listingType === 'donate' ? 'Donation' : 'Sell';
-    const badgeClass = item.listingType === 'donate' ? 'sd-badge donation' : 'sd-badge sell';
-
-    html += `
-      <a class="sd-row" href="provider-items.php" ${isMobile ? 'onclick="closeMobileMenu()"' : ''}>
-        ${thumb}
-        <div class="sd-info">
-          <div class="sd-name">${item.name || 'Item'}</div>
-          <div class="sd-sub">${priceText}</div>
-        </div>
-        <span class="${badgeClass}">${badgeText}</span>
-      </a>
-    `;
-  });
-
-  dropdown.innerHTML = html;
-  dropdown.classList.add('visible');
-}
-
-function setupItemSearch(inputId, dropdownId, isMobile = false) {
-  const input = document.getElementById(inputId);
-  const dropdown = document.getElementById(dropdownId);
-  if (!input || !dropdown) return;
-
-  let timer = null;
-
-  input.addEventListener('input', function () {
-    clearTimeout(timer);
-    const q = this.value.trim().toLowerCase();
-
-    if (q.length < 1) {
-      dropdown.classList.remove('visible');
-      dropdown.innerHTML = '';
-      return;
-    }
-
-    dropdown.innerHTML = '<div style="padding:14px;text-align:center;color:#8a9ab5;font-size:13px;">Searching...</div>';
-    dropdown.classList.add('visible');
-
-    timer = setTimeout(() => {
-      const results = itemSearchData.filter(item =>
-        (item.name || '').toLowerCase().includes(q)
-      );
-
-      renderItemResults(results, dropdownId, isMobile);
-    }, 180);
-  });
-
-  input.addEventListener('keydown', e => {
-    if (e.key === 'Escape') {
-      dropdown.classList.remove('visible');
-    }
-  });
-}
-
-setupItemSearch('searchInput', 'searchDropdown', false);
-setupItemSearch('mobileSearchInput', 'mobileSearchDropdown', true);
-
-document.addEventListener('click', e => {
-  const searchWrap = document.getElementById('searchWrap');
-  const searchDropdown = document.getElementById('searchDropdown');
-  const mobileSearchInput = document.getElementById('mobileSearchInput');
-  const mobileSearchDropdown = document.getElementById('mobileSearchDropdown');
-
-  if (searchWrap && searchDropdown && !searchWrap.contains(e.target)) {
-    searchDropdown.classList.remove('visible');
-  }
-
-  if (
-    mobileSearchDropdown &&
-    mobileSearchInput &&
-    !mobileSearchInput.contains(e.target) &&
-    !mobileSearchDropdown.contains(e.target)
-  ) {
-    mobileSearchDropdown.classList.remove('visible');
-  }
-});
-</script>
 </body>
 
 </html> 
