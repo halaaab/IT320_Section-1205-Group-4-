@@ -677,7 +677,7 @@ function fmtPickupTime($value): string {
     <?php else: ?>
       <span class="item-price-big">
         <?= number_format($price, 2) ?>
-        <img src="../../images/riyal.png" class="riyal-icon-top">
+        <img src="../../images/SAR.png" class="riyal-icon-top">
       </span>
     <?php endif; ?>
   </div>
