@@ -189,11 +189,7 @@ if ($isLoggedIn) {
     .filter-tab{padding:9px 28px;border-radius:50px;border:2px solid #e07a1a;background:transparent;color:#e07a1a;font-weight:700;font-size:15px;font-family:'DM Sans',sans-serif;cursor:pointer;transition:all 0.2s;text-decoration:none;display:inline-block;}
     .filter-tab.active,.filter-tab:hover{background:#e07a1a;color:#fff;}
 
-    /* ── ITEMS GRID ── */
-    .items-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:20px;margin-bottom:48px;}
-    @media(max-width:1100px){.items-grid{grid-template-columns:repeat(3,1fr)}}
-    @media(max-width:800px){.items-grid{grid-template-columns:repeat(2,1fr)}}
-    @media(max-width:500px){.items-grid{grid-template-columns:1fr}}
+
 
     /* ── ITEM CARD ── */
     .item-card{background:#f2f4f8;border-radius:24px;border:1.5px solid #c8d8ee;padding:18px 18px 20px;display:flex;flex-direction:column;gap:0;box-shadow:0 2px 14px rgba(26,58,107,0.07);transition:box-shadow 0.2s,transform 0.2s;}
@@ -233,14 +229,68 @@ if ($isLoggedIn) {
 
     /* ── FOOTER (identical to landing page, always at bottom) ── */
     footer{background:linear-gradient(90deg,#1a3a6b 0%,#2255a4 60%,#3a7bd5 100%);padding:28px 48px;display:flex;flex-direction:column;align-items:center;gap:14px;margin-top:auto;}
-    .footer-top{display:flex;align-items:center;gap:18px;}
+   .footer-top{display:flex;align-items:center;gap:18px;flex-wrap:wrap;justify-content:center;}
     .social-icon{width:42px;height:42px;border-radius:50%;border:1.5px solid rgba(255,255,255,0.5);display:flex;align-items:center;justify-content:center;color:#fff;font-size:16px;font-weight:700;cursor:pointer;text-decoration:none;font-family:'Playfair Display',serif;transition:background 0.2s;}
     .social-icon:hover{background:rgba(255,255,255,0.15);}
     .footer-divider{width:1px;height:22px;background:rgba(255,255,255,0.3);}
     .footer-email{display:flex;align-items:center;gap:6px;color:rgba(255,255,255,0.9);font-size:14px;font-family:'Playfair Display',serif;}
     .footer-bottom{display:flex;align-items:center;gap:8px;color:rgba(255,255,255,0.7);font-size:13px;font-family:'Playfair Display',serif;}
 
-    @media(max-width:768px){nav{padding:0 18px;}.nav-logo{height:72px;}.nav-center,.nav-search-wrap{display:none;}.hamburger{display:flex;}.provider-card{flex-direction:column;gap:16px;margin-top:-24px;padding:20px;}.prov-name{font-size:26px;}}
+@media(max-width:768px) {
+      /* ── NAVBAR ── */
+      nav { padding: 0 16px; }
+      .nav-logo { height: 64px; }
+      .nav-center { display: none; }
+      .nav-search-wrap { display: none; }
+      .hamburger { display: flex; }
+
+      /* ── FOOTER ── */
+      footer { padding: 24px 16px; }
+      .footer-bottom { font-size: 11px; }
+
+      /* ── PROVIDER INFO CARD ── */
+      .provider-card { 
+        flex-direction: column; 
+        align-items: center; 
+        text-align: center; 
+        padding: 24px 20px; 
+        gap: 16px; 
+        margin-top: -20px; 
+      }
+      .prov-name { justify-content: center; font-size: 26px; }
+      .prov-desc { font-size: 14px; }
+
+      /* ── ITEMS GRID (Strictly 2 Columns) ── */
+      .items-grid { 
+        grid-template-columns: repeat(2, 1fr) !important; 
+        gap: 12px !important; 
+      }
+      
+      /* ── ITEM CARDS SCALING FOR 2x2 ── */
+      .item-card { 
+        min-width: 0 !important; 
+        max-width: 100% !important; 
+        width: 100% !important; 
+        padding: 12px 12px 14px; 
+      }
+      .item-img-box { height: 110px; margin-bottom: 12px; }
+      .item-name { font-size: 14px; }
+      .item-price { font-size: 13px; }
+      .item-desc { font-size: 12px; }
+      .view-btn { padding: 10px 0; font-size: 13px; }
+      .prov-logo-name { font-size: 12px; }
+      .prov-logo-circle { width: 26px; height: 26px; }
+      .fav-btn svg { width: 22px; height: 22px; }
+      .price-row img { width: 16px !important; height: 16px !important; }
+    }
+    /* ── ITEMS GRID ── */
+    .items-grid{display:grid;grid-template-columns:repeat(4, minmax(0, 1fr));gap:20px;margin-bottom:48px;}
+    @media(max-width:1100px){.items-grid{grid-template-columns:repeat(3, minmax(0, 1fr))}}
+    
+    /* This absolutely forces 2 columns on tablets AND small phones */
+    @media(max-width:800px){.items-grid{grid-template-columns:repeat(2, minmax(0, 1fr)) !important;}}
+    @media(max-width:500px){.items-grid{grid-template-columns:repeat(2, minmax(0, 1fr)) !important; gap:12px !important;}}
+    
   </style>
 </head>
 <body>
@@ -461,14 +511,14 @@ if ($isLoggedIn) {
           </div>
           <div class="card-divider"></div>
           <div class="card-body">
-            <div class="name-row">
+        <div class="name-row">
               <span class="item-name"><?= htmlspecialchars($item['itemName'] ?? 'Item') ?></span>
               <div class="price-row">
                 <?php if ($isFree): ?>
                   <span class="item-price price-free">Donation</span>
                 <?php else: ?>
                   <span class="item-price"><?= number_format((float)($item['price'] ?? 0), 2) ?></span>
-                  <div class="sar-box"></div>
+                  <img src="../../images/SAR.png" alt="SAR" style="width: 22px; height: 22px; flex-shrink: 0; object-fit: contain;">
                 <?php endif; ?>
               </div>
             </div>
@@ -493,11 +543,13 @@ if ($isLoggedIn) {
       <a class="social-icon" href="#">&#9834;</a>
     </div>
     <div class="footer-divider"></div>
+    <div class="footer-brand"></div>
     <img src="../../images/Replate-white.png" alt="Replate" style="height:80px;object-fit:contain;opacity:1;" />
     <div class="footer-divider"></div>
     <div class="footer-email">
       <svg width="16" height="16" fill="none" stroke="rgba(255,255,255,0.85)" stroke-width="2" viewBox="0 0 24 24">
-        <rect x="2" y="4" width="20" height="16" rx="2"/><path d="M2 7l10 7 10-7"/>
+        <rect x="2" y="4" width="20" height="16" rx="2"/>
+        <path d="M2 7l10 7 10-7"/>
       </svg>
       Replate@gmail.com
     </div>

@@ -151,6 +151,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         foreach ($groupedByProvider as $providerId => $group) {
             $providerSelectedTime = trim($selectedPickupTimes[$providerId] ?? '');
+                // Treat legacy 'Anytime' value as no real selection
+                if (strtolower($providerSelectedTime) === 'anytime') $providerSelectedTime = '';
 
             foreach ($group['items'] as $entry) {
                 $ci   = $entry['cartItem'];
@@ -174,7 +176,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     break 2;
                 }
 
-                $fallbackPickupTime = $entry['pickupTimes'][0] ?? 'Anytime';
+                // Use the real slot the customer chose, or the first available slot,
+                // or empty string — never the placeholder 'Anytime'.
+                $fallbackPickupTime = $entry['pickupTimes'][0] ?? '';
 
                 $orderItems[] = [
                     'itemId'             => (string)$ci['itemId'],
@@ -311,9 +315,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     .order-heading{font-size:22px;font-weight:700;color:#183482;margin:0 0 14px}
 
     /* Item row in checkout */
-    .checkout-item-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
-    .checkout-item-name{font-size:18px;font-weight:700;color:#183482}
-    .checkout-item-price{font-size:17px;color:#c87a30;font-weight:700}
+    .checkout-item-row{display:flex;align-items:center;gap:14px;padding:10px 0;border-bottom:1px solid #edf1f8}
+    .checkout-item-row:last-child{border-bottom:none}
+    .checkout-item-thumb{width:72px;height:60px;border-radius:10px;object-fit:cover;border:1.4px solid #d2dce8;flex-shrink:0;display:block;background:#e8eef5}
+    .checkout-thumb-placeholder{width:72px;height:60px;border-radius:10px;background:#e8eef5;border:1.4px solid #d2dce8;flex-shrink:0}
+    .checkout-item-details{display:flex;flex-direction:column;gap:3px;flex:1;min-width:0}
+    .checkout-item-name{font-size:16px;font-weight:700;color:#183482}
+    .checkout-item-qty{font-size:12px;color:#6d7da0;font-weight:500}
+    .checkout-item-price{font-size:15px;color:#c87a30;font-weight:700}
 
     /* Payment method */
     .payment-line{font-size:17px;color:#183482;margin-top:14px;display:flex;align-items:center;gap:8px}
@@ -495,16 +504,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_spt = trim((string)($_entry['cartItem']['selectedPickupTime'] ?? ''));
             if ($_spt !== '') { $savedPickupTime = $_spt; break; }
         }
-        // Build the times list, injecting the saved time if not already present
+        // Build the times list — never use 'Anytime' as a real value
         $times = $group['pickupTimes'];
         if (empty($times) && $savedPickupTime) {
-            $times = [$savedPickupTime];          // only option is what they chose
+            $times = [$savedPickupTime];
         } elseif (empty($times)) {
-            $times = ['Anytime'];
+            $times = [];                              // no times defined — leave blank
         } elseif ($savedPickupTime && !in_array($savedPickupTime, $times, true)) {
-            array_unshift($times, $savedPickupTime); // keep saved time at top
+            array_unshift($times, $savedPickupTime);
         }
-        if (!$savedPickupTime) $savedPickupTime = $times[0] ?? 'Anytime';
+        if (!$savedPickupTime) $savedPickupTime = $times[0] ?? '';
       ?>
       <div class="provider-block">
         <div class="provider-inner">
@@ -512,20 +521,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           <!-- LEFT: order items -->
           <div class="provider-left">
             <div class="prov-logo-text"><?= htmlspecialchars(strtoupper($providerName)) ?></div>
-            <div class="order-heading">Order</div>
 
             <?php foreach ($group['items'] as $entry): ?>
               <?php
                 $ci = $entry['cartItem'];
                 $isDonate = strtolower(trim($entry['item']['listingType'] ?? '')) === 'donate';
+                $_photoUrl = $entry['item']['photoUrl'] ?? '';
               ?>
               <div class="checkout-item-row">
-                <span class="checkout-item-name"><?= htmlspecialchars($ci['itemName'] ?? 'Item') ?></span>
-                <?php if ($isDonate): ?>
-                  <span class="checkout-item-price" style="color:#2eb35c;font-weight:700;">Donation</span>
+                <?php if ($_photoUrl): ?>
+                  <img src="<?= htmlspecialchars($_photoUrl) ?>" class="checkout-item-thumb" alt="<?= htmlspecialchars($ci['itemName'] ?? '') ?>">
                 <?php else: ?>
-                  <span class="checkout-item-price"><img src="../../images/riyal.png" style="height:13px;object-fit:contain;vertical-align:middle;margin-right:2px;" alt="SAR"><?= number_format((float)($ci['price'] ?? 0), 2) ?></span>
+                  <div class="checkout-item-thumb checkout-thumb-placeholder"></div>
                 <?php endif; ?>
+                <div class="checkout-item-details">
+                  <span class="checkout-item-name"><?= htmlspecialchars($ci['itemName'] ?? 'Item') ?></span>
+                  <span class="checkout-item-qty">Quantity : <?= (int)($ci['quantity'] ?? 1) ?></span>
+                  <?php if ($isDonate): ?>
+                    <span class="checkout-item-price" style="color:#2eb35c;font-weight:700;">Donation</span>
+                  <?php else: ?>
+                    <span class="checkout-item-price"><img src="../../images/SAR.png" style="height:13px;object-fit:contain;vertical-align:middle;margin-right:2px;" alt="SAR"><?= number_format((float)($ci['price'] ?? 0) * (int)($ci['quantity'] ?? 1), 2) ?></span>
+                  <?php endif; ?>
+                </div>
               </div>
             <?php endforeach; ?>
 
@@ -534,12 +551,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
               <span>Cash</span>
             </div>
 
-            <!-- Pickup time (required by backend) -->
+            <!-- Pickup time — hidden input sends '' when no time is available -->
             <input type="hidden" name="selectedPickupTime[<?= htmlspecialchars($providerId) ?>]" value="<?= htmlspecialchars($savedPickupTime) ?>" />
+            <?php if ($savedPickupTime !== ''): ?>
             <div class="pickup-time-row">
               <span class="pickup-time-label">Pickup time:</span>
               <span class="pickup-time-value"><?= htmlspecialchars($savedPickupTime) ?></span>
             </div>
+            <?php endif; ?>
           </div>
 
           <!-- RIGHT: pickup map -->
@@ -572,7 +591,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <?php if ($allDonate): ?>
           <span class="total-amount" style="color:#2eb35c;">Donation</span>
         <?php else: ?>
-          <span class="total-amount"><img src="../../images/riyal.png" style="height:20px;object-fit:contain;vertical-align:middle;margin-right:3px;" alt="SAR"><?= number_format($total, 2) ?></span>
+          <span class="total-amount"><img src="../../images/SAR.png" style="height:20px;object-fit:contain;vertical-align:middle;margin-right:3px;" alt="SAR"><?= number_format($total, 2) ?></span>
         <?php endif; ?>
       </div>
       <button type="submit" class="place-order-btn">Place order</button>
@@ -592,7 +611,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <div class="footer-divider"></div>
     <div class="footer-brand">
       <img src="../../images/Replate-white.png" alt="RePlate" style="height:24px;object-fit:contain;" />
-      <span>RePlate</span>
+     
     </div>
     <div class="footer-divider"></div>
     <div class="footer-email">

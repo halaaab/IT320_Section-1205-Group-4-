@@ -284,15 +284,48 @@ nav{display:flex;align-items:center;justify-content:space-between;padding:0 48px
 .prov-name{font-size:40px;font-weight:700;color:#183482;line-height:1;font-family:'Playfair Display',serif}
 .status-badge{display:inline-flex;align-items:center;padding:8px 22px;border-radius:8px;font-size:16px;font-weight:700;background:#fef3cd;color:#8b6a00;border:1px solid #f5d86e}
 
-/* Item card */
-.detail-item{background:#f5f8fc;border:1.6px solid #d2dce8;border-radius:20px;padding:16px 18px;display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:12px}
-.item-left{display:flex;align-items:flex-start;gap:14px;flex:1;min-width:0}
-.item-thumb{width:110px;height:90px;border-radius:16px;background:#e8eef5;border:1.4px solid #d2dce8;object-fit:cover;flex-shrink:0;display:block}
-.item-text h4{margin:0 0 4px;font-size:20px;font-weight:700;color:#183482}
-.item-text p{margin:0 0 8px;font-size:14px;color:#4d6186;line-height:1.45}
-.item-qty{font-size:16px;font-weight:700;color:#183482}
-.item-price{color:#ea8b2c;font-size:22px;font-weight:700;flex-shrink:0}
-.rial{font-size:15px;margin-right:2px}
+/* ── Provider big card ── */
+.provider-big-card{background:#fff;border:1.8px solid #d2dce8;border-radius:24px;overflow:hidden;box-shadow:0 2px 14px rgba(26,58,107,.06)}
+
+/* Provider header bar */
+.prov-card-header{display:flex;align-items:center;gap:14px;padding:16px 24px;background:#f4f7fb;border-bottom:1.5px solid #e2eaf4}
+.prov-card-logo{max-height:48px;max-width:80px;object-fit:contain;flex-shrink:0}
+.prov-card-initials{width:48px;height:48px;border-radius:12px;background:#dce8f5;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700;color:#2255a4;flex-shrink:0}
+.prov-card-name{font-size:20px;font-weight:700;color:#183482;font-family:'Playfair Display',serif;flex:1}
+
+/* Items container */
+.prov-card-items{display:flex;flex-direction:column}
+
+/* Single item row */
+.item-row{display:grid;grid-template-columns:110px 1fr 220px;gap:0;border-bottom:1.5px solid #edf1f8;align-items:stretch}
+.item-row:last-child{border-bottom:none}
+
+/* Thumbnail */
+.item-row-thumb{width:110px;height:50%;min-height:90px;object-fit:cover;display:block;flex-shrink:0}
+.item-row-placeholder{width:110px;min-height:110px;background:#e8eef5;display:block;flex-shrink:0}
+
+/* Item details (middle) */
+.item-row-info{display:flex;flex-direction:column;justify-content:center;gap:5px;padding:16px 18px;border-left:1.5px solid #edf1f8}
+.item-row-name{font-size:17px;font-weight:700;color:#183482;font-family:'Playfair Display',serif;line-height:1.2}
+.item-row-qty{font-size:13px;color:#6d7da0;font-weight:500}
+.item-row-price{font-size:19px;font-weight:700;color:#ea8b2c;display:flex;align-items:center;gap:3px}
+.item-row-timechip{display:inline-flex;align-items:center;gap:5px;background:#eef4ff;border:1px solid #c4d7f5;border-radius:8px;padding:4px 10px;font-size:12px;font-weight:600;color:#2255a4;margin-top:4px;width:fit-content}
+
+/* Location panel (right column) */
+.item-row-location{display:flex;flex-direction:column;gap:6px;padding:14px 14px;border-left:1.5px solid #edf1f8;background:#f8fafd}
+.item-loc-label{font-size:11px;font-weight:700;color:#8aa0c0;text-transform:uppercase;letter-spacing:.06em;text-align:center}
+.item-map{width:100%;height:130px;border-radius:10px;border:1.4px solid #d2dce8;background:#dde8f2;overflow:hidden;position:relative;z-index:1}
+.item-map-fallback{width:100%;height:130px;border-radius:10px;background:linear-gradient(135deg,#c8dbf5,#dce7f5);display:flex;align-items:center;justify-content:center;font-size:12px;color:#6d7da0;text-align:center;padding:8px}
+.item-loc-address{font-size:11px;color:#5a6e8a;text-align:center;line-height:1.4}
+
+/* Provider footer */
+.prov-card-footer{padding:14px 24px;border-top:1.5px solid #e2eaf4;background:#f4f7fb;font-size:16px;color:#183482;font-weight:600}
+
+@media(max-width:768px){
+  .item-row{grid-template-columns:80px 1fr}
+  .item-row-location{display:none}
+  .item-row-thumb,.item-row-placeholder{min-height:80px;width:80px}
+}
 
 /* Meta section */
 .detail-meta{margin-top:20px;font-size:20px;color:#183482;line-height:2.1}
@@ -408,22 +441,60 @@ $order = $orderId ? (new Order())->findById($orderId) : null;
 if (!$order || rp_oid($order['customerId'] ?? '') !== $customerId) { header('Location: orders.php'); exit; }
 $orderItems = (new OrderItem())->getByOrder($orderId);
 
-// Group items by provider
+// Build grouped structure: one card per provider, items enriched with location data
+$_itemModel2 = new Item();
+$_locModel2  = new PickupLocation();
+$_provModel2 = new Provider();
 $groupedItems = [];
-foreach ($orderItems as $_oi) {
+
+foreach ($orderItems as $_idx => $_oi) {
     $_pid = (string)($_oi['providerId'] ?? 'unknown');
+
     if (!isset($groupedItems[$_pid])) {
         $_prov = null;
-        $_loc  = null;
-        try { $_prov = (new Provider())->findById($_pid); } catch(Throwable) {}
-        try { $_loc = (new PickupLocation())->getDefault($_pid); } catch(Throwable) {}
-        $groupedItems[$_pid] = [
-            'provider' => $_prov,
-            'location' => $_loc,
-            'items'    => [],
-        ];
+        try { $_prov = $_provModel2->findById($_pid); } catch(Throwable) {}
+        $groupedItems[$_pid] = ['provider' => $_prov, 'items' => []];
     }
-    $groupedItems[$_pid]['items'][] = $_oi;
+
+    // Resolve this item's specific pickup location → fallback to provider default
+    $_itemRec = null; $_locRec = null;
+    try { $_itemRec = $_itemModel2->findById((string)($_oi['itemId'] ?? '')); } catch(Throwable) {}
+    if ($_itemRec && !empty($_itemRec['pickupLocationId'])) {
+        try { $_locRec = $_locModel2->findById((string)$_itemRec['pickupLocationId']); } catch(Throwable) {}
+    }
+    if (!$_locRec) {
+        try { $_locRec = $_locModel2->getDefault($_pid); } catch(Throwable) {}
+    }
+
+    $_lat3 = null; $_lng3 = null;
+    if ($_locRec) {
+        $_c3 = is_array($_locRec['coordinates'] ?? null) ? $_locRec['coordinates'] : (array)($_locRec['coordinates'] ?? []);
+        $_lat3 = $_c3['lat'] ?? null;
+        $_lng3 = $_c3['lng'] ?? null;
+    }
+
+    // Fallback pickup time: first slot defined on the live item record
+    $_firstPt = '';
+    if ($_itemRec && !empty($_itemRec['pickupTimes'])) {
+        // pickupTimes may be a MongoDB\Model\BSONArray — cast to plain PHP array first
+        $_pts = array_values(array_filter((array)$_itemRec['pickupTimes']));
+        $_firstPt = (string)($_pts[0] ?? '');
+    }
+
+    $groupedItems[$_pid]['items'][] = [
+        'data'             => $_oi,
+        'isDonate'         => (($_itemRec['listingType'] ?? '') === 'donate'),
+        'lat'              => $_lat3,
+        'lng'              => $_lng3,
+        'mapId'            => 'imap_' . $_idx,
+        'itemFirstPickupTime' => $_firstPt,
+    ];
+}
+
+// Also keep enrichedItems for map JS
+$enrichedItems = [];
+foreach ($groupedItems as $_gItems) {
+    foreach ($_gItems['items'] as $_ei) { $enrichedItems[] = $_ei; }
 }
 
 // Check if entire order is donation
@@ -454,101 +525,97 @@ foreach ($orderItems as $_oi) {
     <h1 class="page-title">Order number:<?= rp_h($order['orderNumber'] ?? '') ?></h1>
   </div>
 
-  <div class="detail-card" style="padding:0;overflow:hidden;background:transparent;border:none;box-shadow:none;display:flex;flex-direction:column;gap:24px;">
+  <div style="display:flex;flex-direction:column;gap:24px;">
 
     <?php foreach ($groupedItems as $_pid => $_group): ?>
     <?php
       $_prov     = $_group['provider'];
-      $_loc      = $_group['location'];
-      $_provName = $_prov['businessName'] ?? ($groupedItems[$_pid]['items'][0]['providerName'] ?? 'Store');
-      $_lat      = null; $_lng = null;
-      if ($_loc) {
-          $_coords = $_loc['coordinates'] ?? null;
-          if ($_coords) {
-              $_ca = is_array($_coords) ? $_coords : (array)$_coords;
-              $_lat = $_ca['lat'] ?? null;
-              $_lng = $_ca['lng'] ?? null;
-          }
-      }
-      $_locStr = '';
-      if ($_loc) {
-          $_locStr = implode(', ', array_filter([$_loc['street'] ?? '', $_loc['city'] ?? '', $_loc['zip'] ?? '']));
-      }
-      $_mapId = 'map_' . preg_replace('/[^a-zA-Z0-9_]/', '_', $_pid);
+      $_provName = $_prov['businessName'] ?? ($groupedItems[$_pid]['items'][0]['data']['providerName'] ?? 'Store');
     ?>
-    <div class="detail-card" style="display:grid;grid-template-columns:1fr 220px;gap:0;overflow:hidden;">
 
-      <!-- LEFT: provider + items -->
-      <div style="padding:24px 26px;">
-        <!-- Provider header -->
-        <div class="provider-header" style="margin-bottom:20px;">
-          <div class="prov-logo-box">
-            <?php if (!empty($_prov['businessLogo'])): ?>
-              <img src="<?= rp_h($_prov['businessLogo']) ?>" alt="<?= rp_h($_provName) ?>" style="max-height:90px;max-width:120px;object-fit:contain;">
-            <?php else: ?>
-              <div class="prov-logo-text"><?= rp_h($_provName) ?></div>
-            <?php endif; ?>
-          </div>
-          <div class="prov-info">
-            <div class="prov-name"><?= rp_h($_provName) ?></div>
-            <div class="status-badge"><?= ucfirst(rp_h($order['orderStatus'] ?? 'pending')) ?></div>
-          </div>
-        </div>
+    <!-- ── Big provider card ── -->
+    <div class="provider-big-card">
 
-        <!-- Items -->
-        <?php foreach ($_group['items'] as $item): ?>
-        <div class="detail-item">
-          <div class="item-left">
-            <?php if (!empty($item['photoUrl'])): ?>
-              <img class="item-thumb" src="<?= rp_h($item['photoUrl']) ?>" alt="<?= rp_h($item['itemName']) ?>">
-            <?php else: ?>
-              <div class="item-thumb"></div>
-            <?php endif; ?>
-            <div class="item-text">
-              <h4><?= rp_h($item['itemName']) ?></h4>
-              <?php if (!empty($item['description'])): ?>
-                <p><?= rp_h($item['description']) ?></p>
-              <?php endif; ?>
-              <div class="item-qty">Quantity:<?= (int)($item['quantity'] ?? 1) ?></div>
-            </div>
-          </div>
-          <?php
-          $_li2 = null;
-          try { $_li2 = (new Item())->findById((string)($item['itemId'] ?? '')); } catch(Throwable) {}
-          $isItemDonate = (($_li2['listingType'] ?? '') === 'donate');
-          ?>
-          <?php if ($isItemDonate): ?>
-          <div class="item-price donation-tag">Donation</div>
+      <!-- Provider header -->
+      <div class="prov-card-header">
+        <?php if (!empty($_prov['businessLogo'])): ?>
+          <img src="<?= rp_h($_prov['businessLogo']) ?>" alt="<?= rp_h($_provName) ?>" class="prov-card-logo">
+        <?php else: ?>
+          <div class="prov-card-initials"><?= rp_h(strtoupper(substr($_provName,0,2))) ?></div>
+        <?php endif; ?>
+        <span class="prov-card-name"><?= rp_h($_provName) ?></span>
+        <span class="status-badge"><?= ucfirst(rp_h($order['orderStatus'] ?? 'pending')) ?></span>
+      </div>
+
+      <!-- Items -->
+      <div class="prov-card-items">
+        <?php foreach ($_group['items'] as $_ei): ?>
+        <?php
+          $_oi      = $_ei['data'];
+          $_ipt     = trim((string)($_oi['selectedPickupTime'] ?? ''));
+          // If the order didn't capture a real time, fall back to the item's first defined slot
+          if (($_ipt === '' || strtolower($_ipt) === 'anytime') && !empty($_ei['itemFirstPickupTime'])) {
+              $_ipt = $_ei['itemFirstPickupTime'];
+          }
+          $_iloc    = trim((string)($_oi['pickupLocation'] ?? ''));
+          $_qty     = (int)($_oi['quantity'] ?? 1);
+          $_price   = (float)($_oi['price'] ?? 0);
+          $_isDonate = $_ei['isDonate'];
+          $_lat     = $_ei['lat'];
+          $_lng     = $_ei['lng'];
+          $_mapId   = $_ei['mapId'];
+        ?>
+        <div class="item-row">
+
+          <!-- Image -->
+          <?php if (!empty($_oi['photoUrl'])): ?>
+            <img class="item-row-thumb" src="<?= rp_h($_oi['photoUrl']) ?>" alt="<?= rp_h($_oi['itemName']) ?>">
           <?php else: ?>
-          <div class="item-price"><img src="../../images/SAR.png" class="riyal-img" alt="SAR"><?= rp_money((float)($item['price'] ?? 0) * (int)($item['quantity'] ?? 1)) ?></div>
+            <div class="item-row-thumb item-row-placeholder"></div>
           <?php endif; ?>
+
+          <!-- Details -->
+          <div class="item-row-info">
+            <div class="item-row-name"><?= rp_h($_oi['itemName']) ?></div>
+            <div class="item-row-qty">Quantity : <?= $_qty ?></div>
+            <?php if ($_isDonate): ?>
+              <div class="item-row-price donation-tag">Donation</div>
+            <?php else: ?>
+              <div class="item-row-price">
+                <img src="../../images/SAR.png" class="riyal-img" alt="SAR"><?= rp_money($_price * $_qty) ?>
+              </div>
+            <?php endif; ?>
+            <?php if ($_ipt !== '' && strtolower($_ipt) !== 'anytime'): ?>
+            <div class="item-row-timechip">
+              <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              <?= rp_h($_ipt) ?>
+            </div>
+            <?php endif; ?>
+          </div>
+
+          <!-- Map + address -->
+          <div class="item-row-location">
+            <div class="item-loc-label">Pick up location</div>
+            <?php if ($_lat && $_lng): ?>
+              <div id="<?= rp_h($_mapId) ?>" class="item-map"></div>
+            <?php else: ?>
+              <div class="item-map-fallback">Map not available</div>
+            <?php endif; ?>
+            <?php if ($_iloc): ?>
+              <div class="item-loc-address"><?= rp_h($_iloc) ?></div>
+            <?php endif; ?>
+          </div>
+
         </div>
         <?php endforeach; ?>
-
-        <!-- Meta -->
-        <div class="detail-meta">
-          <?php if (!$isDonationOrder): ?>
-          <div><strong>Payment method :</strong> Cash 💵</div>
-          <?php endif; ?>
-          <?php
-          $_pt = $groupedItems[$_pid]['items'][0]['selectedPickupTime'] ?? '';
-          if ($_pt && $_pt !== 'Anytime'):
-          ?>
-          <div><strong>Pickup time :</strong> <?= rp_h($_pt) ?></div>
-          <?php endif; ?>
-        </div>
       </div>
 
-      <!-- RIGHT: map -->
-      <div class="provider-right">
-        <div class="pickup-label">Pick up location</div>
-        <?php if ($_lat && $_lng): ?>
-          <div id="<?= rp_h($_mapId) ?>" class="provider-map"></div>
-        <?php else: ?>
-          <div class="map-fallback">Location not available</div>
-        <?php endif; ?>
-        <div class="pickup-address"><?= rp_h($_locStr) ?></div>
+      <!-- Footer -->
+      <?php if (!$isDonationOrder): ?>
+      <div class="prov-card-footer">
+        <strong>Payment method :</strong> Cash
       </div>
+      <?php endif; ?>
 
     </div>
     <?php endforeach; ?>
@@ -579,24 +646,15 @@ function toggleNotifDropdown(){
   if(el) el.classList.toggle('open');
 }
 
-// Init maps for each provider
+// Init one map per order item
 document.addEventListener('DOMContentLoaded', function() {
-  <?php foreach ($groupedItems as $_pid => $_group): ?>
-  <?php
-    $_loc2 = $_group['location'];
-    $_lat2 = null; $_lng2 = null;
-    if ($_loc2) {
-        $_lat2 = $_loc2['coordinates']['lat'] ?? null;
-        $_lng2 = $_loc2['coordinates']['lng'] ?? null;
-    }
-    $_mapId2 = 'map_' . preg_replace('/[^a-zA-Z0-9_]/', '_', $_pid);
-  ?>
-  <?php if ($_lat2 && $_lng2): ?>
+  <?php foreach ($enrichedItems as $_ei): ?>
+  <?php if ($_ei['lat'] && $_ei['lng']): ?>
   (function() {
-    var m = L.map('<?= $_mapId2 ?>', {zoomControl:false,dragging:false,scrollWheelZoom:false,doubleClickZoom:false,boxZoom:false,keyboard:false,tap:false,touchZoom:false})
-      .setView([<?= (float)$_lat2 ?>, <?= (float)$_lng2 ?>], 14);
+    var m = L.map('<?= $_ei['mapId'] ?>', {zoomControl:false,dragging:false,scrollWheelZoom:false,doubleClickZoom:false,boxZoom:false,keyboard:false,tap:false,touchZoom:false})
+      .setView([<?= (float)$_ei['lat'] ?>, <?= (float)$_ei['lng'] ?>], 14);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'&copy; OpenStreetMap'}).addTo(m);
-    L.marker([<?= (float)$_lat2 ?>, <?= (float)$_lng2 ?>]).addTo(m);
+    L.marker([<?= (float)$_ei['lat'] ?>, <?= (float)$_ei['lng'] ?>]).addTo(m);
     setTimeout(function(){ m.invalidateSize(); }, 150);
   })();
   <?php endif; ?>

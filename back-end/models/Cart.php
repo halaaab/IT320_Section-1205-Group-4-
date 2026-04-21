@@ -53,11 +53,12 @@ class Cart extends BaseModel {
                 [
                     '$push' => [
                         'cartItems' => [
-                            'itemId'     => $itemObjId,
-                            'providerId' => self::toObjectId($item['providerId']),
-                            'quantity'   => (int) $item['quantity'],
-                            'itemName'   => $item['itemName'],    // snapshot
-                            'price'      => (float) $item['price'], // snapshot
+                            'itemId'             => $itemObjId,
+                            'providerId'         => self::toObjectId($item['providerId']),
+                            'quantity'           => (int) $item['quantity'],
+                            'itemName'           => $item['itemName'],
+                            'price'              => (float) $item['price'],
+                            'selectedPickupTime' => $item['selectedPickupTime'] ?? '',
                         ]
                     ],
                     '$set' => ['updatedAt' => new MongoDB\BSON\UTCDateTime()],

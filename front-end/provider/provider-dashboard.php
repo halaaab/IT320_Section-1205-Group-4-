@@ -74,12 +74,39 @@ foreach ($allOrderItems as $oi) {
 $totalOrders     = count($allOrderIds);
 $pendingOrders   = 0;
 $completedOrders = 0;
-foreach ($allOrderIds as $oid) {
+
+// ── Group by orderId ──────────────────────────────────────────────────────────
+$groupedOrders = [];
+foreach ($allOrderItems as $oi) {
+    $oid = (string)($oi['orderId'] ?? '');
+    if (!$oid) continue;
+    if (!isset($groupedOrders[$oid])) $groupedOrders[$oid] = [];
+    $groupedOrders[$oid][] = $oi;
+}
+
+// Count pending/completed based on PROVIDER'S items
+foreach ($groupedOrders as $oid => $items) {
     try {
         $o = $orderModel->findById($oid);
         if (!$o) continue;
-        if ($o['orderStatus'] === 'pending')   $pendingOrders++;
-        if ($o['orderStatus'] === 'completed') $completedOrders++;
+        
+        // Skip cancelled orders
+        if (($o['orderStatus'] ?? 'pending') === 'cancelled') continue;
+        
+        $hasAnyPending = false;
+        foreach ($items as $it) {
+            $s = strtolower(trim($it['itemStatus'] ?? 'pending'));
+            if ($s !== 'completed' && $s !== 'cancelled') {
+                $hasAnyPending = true;
+                break;
+            }
+        }
+        
+        if ($hasAnyPending) {
+            $pendingOrders++;
+        } else {
+            $completedOrders++;
+        }
     } catch (Throwable) {}
 }
 
@@ -387,6 +414,22 @@ function timeAgo($utcDate): string {
 .mobile-search input::placeholder {
   color: rgba(255,255,255,0.6);
 }
+
+.mobile-search-dropdown {
+  display: none;
+  background: #fff;
+  border-radius: 14px;
+  border: 1.5px solid #e0eaf5;
+  box-shadow: 0 8px 32px rgba(26,58,107,0.18);
+  margin-top: 8px;
+  overflow: hidden;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.mobile-search-dropdown.visible {
+  display: block;
+}
 @media (max-width: 768px) {
   nav.navbar {
     padding: 0 18px;
@@ -521,8 +564,7 @@ function timeAgo($utcDate): string {
     padding: 13px;
     font-size: 14px;
   }
-}
-@media (max-width: 768px) {
+
   .nav-search-wrap {
     display: none;
   }
@@ -564,20 +606,19 @@ function timeAgo($utcDate): string {
   </div>
 </nav>
 <div class="mobile-menu" id="mobileMenu">
-    <div class="mobile-search">
-    <svg width="18" height="18" fill="none" stroke="#fff" stroke-width="2" viewBox="0 0 24 24">
-      <circle cx="11" cy="11" r="7"></circle>
-      <path d="m21 21-4.3-4.3"></path>
-    </svg>
-    <input type="text" id="mobileSearchInput" placeholder="Search items ..." />
-  </div>
   <a href="provider-dashboard.php" onclick="closeMobileMenu()">Dashboard</a>
   <a href="provider-items.php" onclick="closeMobileMenu()">Items</a>
   <a href="provider-orders.php" onclick="closeMobileMenu()">Orders</a>
   <a href="provider-profile.php" onclick="closeMobileMenu()">Profile</a>
   <a href="provider-dashboard.php?logout=1" onclick="closeMobileMenu()">Log out</a>
-
-
+  <div class="mobile-search">
+    <svg width="18" height="18" fill="none" stroke="#fff" stroke-width="2" viewBox="0 0 24 24">
+      <circle cx="11" cy="11" r="7"></circle>
+      <path d="m21 21-4.3-4.3"></path>
+    </svg>
+    <input type="text" id="mobileSearchInput" placeholder="Search items ..." autocomplete="off"/>
+    <div class="mobile-search-dropdown" id="mobileSearchDropdown"></div>
+  </div>
 </div>
 
   <div class="page-body">
@@ -849,7 +890,7 @@ function timeAgo($utcDate): string {
           const badgeClass = item.listingType === 'donate' ? 'sd-badge-donate' : 'sd-badge-sell';
           const badgeLabel = item.listingType === 'donate' ? 'Donation' : 'Selling';
           html += `
-            <a class="sd-row" href="provider-item-details.php?id=${esc(item.id)}">
+            <a class="sd-row" href="provider-items.php?openItem=${esc(item.id)}">
               <div class="sd-thumb">${thumb}</div>
               <div class="sd-info">
                 <div class="sd-name">${esc(item.name)}</div>
@@ -891,7 +932,7 @@ function timeAgo($utcDate): string {
   <script>
 function toggleMobileMenu() {
   const menu = document.getElementById('mobileMenu');
-  const btn = document.getElementById('hamburger');
+  const btn  = document.getElementById('hamburger');
   menu.classList.toggle('open');
   btn.classList.toggle('open');
   document.body.style.overflow = menu.classList.contains('open') ? 'hidden' : '';
@@ -901,15 +942,64 @@ function closeMobileMenu() {
   document.getElementById('mobileMenu').classList.remove('open');
   document.getElementById('hamburger').classList.remove('open');
   document.body.style.overflow = '';
+  // Also clear mobile search
+  const msd = document.getElementById('mobileSearchDropdown');
+  if (msd) { msd.classList.remove('visible'); msd.innerHTML = ''; }
+  const msi = document.getElementById('mobileSearchInput');
+  if (msi) msi.value = '';
 }
 
-document.getElementById('mobileSearchInput')?.addEventListener('input', function () {
-  const desktopSearch = document.getElementById('searchInput');
-  if (desktopSearch) {
-    desktopSearch.value = this.value;
-    desktopSearch.dispatchEvent(new Event('input'));
+// ── Mobile search — independent, renders into its own dropdown ────────────────
+(function() {
+  const mInput    = document.getElementById('mobileSearchInput');
+  const mDropdown = document.getElementById('mobileSearchDropdown');
+  if (!mInput || !mDropdown) return;
+
+  let mTimer = null;
+
+  mInput.addEventListener('input', function() {
+    clearTimeout(mTimer);
+    const q = this.value.trim();
+    if (q.length < 2) { mDropdown.classList.remove('visible'); mDropdown.innerHTML = ''; return; }
+    mDropdown.innerHTML = '<div class="sd-loading">Searching...</div>';
+    mDropdown.classList.add('visible');
+    mTimer = setTimeout(() => mDoSearch(q), 300);
+  });
+
+  function mDoSearch(q) {
+    fetch(`../../back-end/provider-search.php?q=${encodeURIComponent(q)}`)
+      .then(r => r.json())
+      .then(data => mRenderResults(data, q))
+      .catch(() => { mDropdown.innerHTML = '<div class="sd-empty">Something went wrong.</div>'; });
   }
-});
+
+  function mRenderResults(data, q) {
+    const items = data.items || [];
+    if (!items.length) {
+      mDropdown.innerHTML = '<div class="sd-empty">No items found.</div>'; return;
+    }
+    let html = '<div class="sd-section-title">Items</div>';
+    items.forEach(item => {
+      const thumb = item.photoUrl
+        ? `<img src="${mEsc(item.photoUrl)}" alt="" onerror="this.style.display='none'">`
+        : `<svg width="20" height="20" fill="none" stroke="#c8d8ee" stroke-width="1.5" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3"/></svg>`;
+      const badgeClass = item.listingType === 'donate' ? 'sd-badge-donate' : 'sd-badge-sell';
+      const badgeLabel = item.listingType === 'donate' ? 'Donation' : 'Selling';
+      html += `<a class="sd-row" href="provider-items.php?openItem=${mEsc(item.id)}">
+        <div class="sd-thumb">${thumb}</div>
+        <div class="sd-info"><div class="sd-name">${mEsc(item.name)}</div><div class="sd-sub">${mEsc(item.price)}</div></div>
+        <span class="sd-badge ${badgeClass}">${badgeLabel}</span>
+      </a>`;
+    });
+    mDropdown.innerHTML = html;
+  }
+
+  function mEsc(str) {
+    const d = document.createElement('div');
+    d.textContent = String(str ?? '');
+    return d.innerHTML;
+  }
+})();
 </script>
 </body>
 </html>

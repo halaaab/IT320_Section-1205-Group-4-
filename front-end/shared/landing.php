@@ -1156,6 +1156,9 @@ if ($inCart && $inFav) {
     font-size: 13px;       /* smaller text */
     border-radius: 30px;
   }
+  .btn-cat-shop {
+font-size: 10px; padding: 9px 0;
+  }
 }
 @media (max-width: 768px) {
   .item-card {
@@ -1375,13 +1378,13 @@ if ($inCart && $inFav) {
 
 </div>
   <!-- HERO -->
-  <section class="hero">
+<section class="hero">
     <div class="hero-bg"></div>
     <div class="hero-overlay"></div>
     <div class="hero-content">
       <p class="hero-subtitle">Join the movement to reduce food waste and</p>
       <h1 class="hero-title">help Riyadh go green</h1>
-      <button class="btn-shop">Shop now</button>
+      <a href="../customer/category.php" class="btn-shop" style="display: inline-block; text-decoration: none;">Shop now</a>
     </div>
   </section>
 

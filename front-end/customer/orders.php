@@ -190,14 +190,31 @@ try {
 
 $orderModel = new Order(); $orderItemModel = new OrderItem();
 if (($_POST['action'] ?? '')==='cancel' && !empty($_POST['orderId'])) {
-    $order = $orderModel->findById($_POST['orderId']);          // fetch order first
-    $orderModel->cancel($_POST['orderId']);
-    (new Notification())->create(                              // fire notification
-        $customerId,
-        'order_cancelled',
-        'Your order #' . ($order['orderNumber'] ?? '') . ' has been cancelled.',
-        ['orderId' => $_POST['orderId']]
-    );
+    $order = $orderModel->findById($_POST['orderId']);
+    // Only allow cancellation of pending orders owned by this customer
+    if ($order && (string)($order['customerId'] ?? '') === $customerId
+        && ($order['orderStatus'] ?? '') === 'pending') {
+
+        $orderModel->cancel($_POST['orderId']);
+
+        // Restore item quantities and mark every order_item as cancelled
+        $cancelItems = $orderItemModel->getByOrder($_POST['orderId']);
+        $itemModel_c = new Item();
+        foreach ($cancelItems as $_ci) {
+            $itemModel_c->increaseQuantity(
+                (string)($_ci['itemId'] ?? ''),
+                (int)($_ci['quantity'] ?? 1)
+            );
+            $orderItemModel->updateById((string)$_ci['_id'], ['itemStatus' => 'cancelled']);
+        }
+
+        (new Notification())->create(
+            $customerId,
+            'order_cancelled',
+            'Your order #' . ($order['orderNumber'] ?? '') . ' has been cancelled.',
+            ['orderId' => $_POST['orderId']]
+        );
+    }
     header('Location: orders.php?tab=currently'); exit;
 }
 $tab = $_GET['tab'] ?? 'currently';

@@ -737,14 +737,14 @@ if ($isLoggedIn) {
           <div class="card-divider"></div>
 
           <div class="card-body">
-            <div class="name-row">
+           <div class="name-row">
               <span class="item-name"><?= htmlspecialchars($item['itemName'] ?? 'Item') ?></span>
               <div class="price-row">
                 <?php if ($isFree): ?>
                   <span class="item-price price-free">Free</span>
                 <?php else: ?>
                   <span class="item-price"><?= number_format((float)($item['price'] ?? 0), 2) ?></span>
-                  <div class="sar-box"></div>
+                  <img src="../../images/SAR.png" alt="SAR" style="width: 22px; height: 22px; object-fit: contain;">
                 <?php endif; ?>
               </div>
             </div>
