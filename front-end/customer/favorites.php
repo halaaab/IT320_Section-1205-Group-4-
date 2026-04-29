@@ -467,52 +467,6 @@ unset($fav);
           <?php endif; ?>
         </div><!-- /profile-col -->
 
-        <!-- RIGHT: Notification Center (identical to customer-profile.php) -->
-        <div>
-          <div class="notif-panel">
-            <div class="notif-panel-header">
-              <div class="notif-panel-title">
-                <svg width="18" height="18" fill="none" stroke="#1a3a6b" stroke-width="2" viewBox="0 0 24 24"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
-                Notification Center
-                <span class="notif-count-badge <?= $unreadCount===0 ? 'zero' : '' ?>" id="panelBadge"><?= $unreadCount ?></span>
-              </div>
-              <?php if ($unreadCount > 0): ?>
-              <button class="mark-read-btn" onclick="markAllRead()">Mark all read</button>
-              <?php endif; ?>
-            </div>
-            <div class="notif-panel-body" id="notifPanelBody">
-              <?php if (empty($notifications)): ?>
-              <div class="notif-panel-empty">
-                <svg width="40" height="40" fill="none" stroke="#c8d8ee" stroke-width="1.5" viewBox="0 0 24 24" style="display:block;margin:0 auto 12px;"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
-                You're all caught up!<br>
-                <span style="font-size:12px;">Expiry alerts and order updates appear here</span>
-              </div>
-              <?php else: ?>
-              <?php foreach ($notifications as $notif_p):
-                $npRead_=(bool)($notif_p['isRead']??false);$npMsg_=htmlspecialchars($notif_p['message']??'');$npId_=(string)($notif_p['_id']??'');$npType_=$notif_p['type']??'';$npTime_='';
-                try{if(!empty($notif_p['createdAt'])){$ts_=$notif_p['createdAt']->toDateTime()->getTimestamp();$d_=time()-$ts_;$npTime_=$d_<60?'Just now':($d_<3600?floor($d_/60).'m ago':($d_<86400?floor($d_/3600).'h ago':date('d M',$ts_)));}}catch(Throwable $e_){}
-                $npIconBg_='#f2f4f8';$npIconSvg_='';$npTags_='';$npBL_=$npRead_?'':'border-left:3px solid #e07a1a;';
-                if($npType_==='expiry_alert'){$rawMsg_=$notif_p['message']??'';$urg_=str_contains($rawMsg_,'[red]')?'red':(str_contains($rawMsg_,'[orange]')?'orange':'yellow');$urgC_=$urg_==='red'?'#c0392b':($urg_==='orange'?'#e07a1a':'#d4ac0d');$npIconBg_=$urg_==='red'?'#fde8e8':($urg_==='orange'?'#fff0e0':'#fffbe6');$npIconSvg_='<svg width="15" height="15" fill="none" stroke="'.$urgC_.'" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>';preg_match('/expires in ([^!]+)!/',$rawMsg_,$m_);$timeTag_=!empty($m_[1])?'<span class="ntag ntag-'.$urg_.'">'.trim($m_[1]).'</span>':'';$srcTag_=str_contains($rawMsg_,'(Cart)')?'<span class="ntag ntag-cart">Cart</span>':(str_contains($rawMsg_,'(Favourites)')?'<span class="ntag ntag-fav">Favourites</span>':'');$npTags_=$timeTag_.$srcTag_;$npBL_='border-left:3px solid '.$urgC_.'.';}
-                elseif($npType_==='order_placed'){$npIconBg_='#e8f7ee';$npIconSvg_='<svg width="15" height="15" fill="none" stroke="#1a6b3a" stroke-width="2" viewBox="0 0 24 24"><polyline points="9 12 11 14 15 10"/></svg>';$npTags_='<span class="ntag ntag-order">✓ Order placed</span>';$npBL_='border-left:3px solid #1a6b3a;';}
-                elseif($npType_==='order_completed'){$npIconBg_='#e8f7ee';$npIconSvg_='<svg width="15" height="15" fill="none" stroke="#1a6b3a" stroke-width="2" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>';$npTags_='<span class="ntag ntag-order">Picked up</span>';$npBL_='border-left:3px solid #1a6b3a;';}
-                elseif($npType_==='order_cancelled'){$npIconBg_='#fde8e8';$npIconSvg_='<svg width="15" height="15" fill="none" stroke="#e53935" stroke-width="2" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';$npTags_='<span class="ntag ntag-cancel">✕ Cancelled</span>';$npBL_='border-left:3px solid #e53935;';}
-                $npClean_=trim(preg_replace('/\[(?:red|orange|yellow|pickup|completed|cancelled)\]\s*/','',str_replace('.','',str_replace(';','',$npMsg_))));
-              ?>
-              <div class="notif-card <?= $npRead_?'':'unread' ?>" data-id="<?= $npId_ ?>" onclick="markRead(this)" style="<?= $npBL_ ?>">
-                <div class="notif-card-icon" style="background:<?= $npIconBg_ ?>;width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;"><?= $npIconSvg_ ?></div>
-                <div class="notif-card-body">
-                  <p class="notif-card-title" style="font-weight:<?= $npRead_?'600':'700' ?>;"><?= htmlspecialchars(strip_tags($npClean_)) ?></p>
-                  <div style="margin-top:4px;"><?= $npTags_ ?></div>
-                  <p class="notif-card-time"><?= $npTime_ ?></p>
-                </div>
-                <?php if(!$npRead_):?><div class="unread-dot" style="width:8px;height:8px;background:#e07a1a;border-radius:50%;flex-shrink:0;margin-top:5px;"></div><?php endif;?>
-              </div>
-              <?php endforeach;?>
-              <?php endif;?>
-            </div>
-          </div>
-        </div><!-- /notif-col -->
-
       </div><!-- /dashboard-grid -->
     </main>
   </div><!-- /page-body -->
